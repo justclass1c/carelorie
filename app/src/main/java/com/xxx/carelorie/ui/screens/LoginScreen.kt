@@ -1,4 +1,4 @@
-package com.xxx.carelorie
+package com.xxx.carelorie.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape

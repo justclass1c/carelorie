@@ -5,6 +5,8 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.xxx.carelorie.ui.screens.Dashboard
+import com.xxx.carelorie.ui.screens.LoginScreen
 
 @Composable
 fun AppNavigation(modifier: Modifier = Modifier) {
@@ -25,7 +27,7 @@ fun AppNavigation(modifier: Modifier = Modifier) {
         }
 
         composable("dashboard") {
-            Dashboard(navController = navController)
+            Dashboard(navController = navController, username = "")
         }
     }
 }
