@@ -33,6 +33,8 @@ fun MacroRow() {
 
 @Composable
 fun MacroCard(macro: String, value: Int, maxValue: Int, modifier: Modifier = Modifier) {
+    val unit = if (macro == "Calories") "kcal" else "g"
+
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
@@ -40,12 +42,12 @@ fun MacroCard(macro: String, value: Int, maxValue: Int, modifier: Modifier = Mod
         ),
         modifier = modifier.aspectRatio(1f),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(0.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(8.dp),
+                .padding(2.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -60,8 +62,9 @@ fun MacroCard(macro: String, value: Int, maxValue: Int, modifier: Modifier = Mod
             )
 
             Text(
-                text = "of " + maxValue.toString(),
-                style = MaterialTheme.typography.titleMedium
+                text = "of $maxValue$unit",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
         }
