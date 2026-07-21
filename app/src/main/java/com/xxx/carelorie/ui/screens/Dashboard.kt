@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,11 +26,13 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun Dashboard(navController: NavController, username: String) {
     val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMMM"))
+    val scrollState = rememberScrollState() // remember how far user has scrolled
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         // greeting and date at the top left
         Column(

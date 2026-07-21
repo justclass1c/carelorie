@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -16,8 +17,8 @@ import com.xxx.carelorie.ui.theme.CarelorieTheme
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit, navController: NavController) {
     // create mutable states for two variables
-    var email by remember { (mutableStateOf("")) }
-    var password by remember { (mutableStateOf("")) }
+    var email by rememberSaveable { (mutableStateOf("")) }
+    var password by rememberSaveable { (mutableStateOf("")) }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
