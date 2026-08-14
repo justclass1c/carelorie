@@ -18,9 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xxx.carelorie.data.DailyMacroIntake
 import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.*
-import androidx.compose.ui.platform.LocalLocale
 
 @Composable
 fun WeeklyMacroChart(data: List<DailyMacroIntake>) {
@@ -44,9 +41,18 @@ fun WeeklyMacroChart(data: List<DailyMacroIntake>) {
             verticalAlignment = Alignment.Bottom
         ) {
             val today = LocalDate.now()
-            data.forEach { intake ->
-                val isToday = intake.date == today
-                DayBarColumn(intake = intake, isToday = isToday)
+            // Defensive check for empty or null-like data
+            if (data.isNotEmpty()) {
+                data.forEach { intake ->
+                    val isToday = intake.date == today
+                    DayBarColumn(intake = intake, isToday = isToday)
+                }
+            } else {
+                Text(
+                    "No data available",
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
         }
     }
@@ -81,28 +87,34 @@ fun DayBarColumn(intake: DailyMacroIntake, isToday: Boolean) {
                 // Draw Fat (top of stack)
                 drawRect(
                     color = fatColor,
-                    topLeft = Offset(0f, size.height - pHeight - cHeight - fHeight),
-                    size = Size(size.width, fHeight)
+                    topLeft = Offset(0f, (size.height - pHeight - cHeight - fHeight).coerceAtLeast(0f)),
+                    size = Size(size.width, fHeight.coerceAtLeast(0f))
                 )
                 // Draw Carbs (middle)
                 drawRect(
                     color = carbsColor,
-                    topLeft = Offset(0f, size.height - pHeight - cHeight),
-                    size = Size(size.width, cHeight)
+                    topLeft = Offset(0f, (size.height - pHeight - cHeight).coerceAtLeast(0f)),
+                    size = Size(size.width, cHeight.coerceAtLeast(0f))
                 )
                 // Draw Protein (bottom)
                 drawRect(
                     color = proteinColor,
-                    topLeft = Offset(0f, size.height - pHeight),
-                    size = Size(size.width, pHeight)
+                    topLeft = Offset(0f, (size.height - pHeight).coerceAtLeast(0f)),
+                    size = Size(size.width, pHeight.coerceAtLeast(0f))
                 )
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Day Label
-        val dayInitial = intake.date.dayOfWeek.getDisplayName(TextStyle.NARROW, LocalLocale.current.platformLocale)
+        // Day Label - Simplified to avoid experimental API and non-observable locale crashes
+        val dayInitial = try {
+            // Using a simple substring of the English name as a stable fallback
+            intake.date.dayOfWeek.name.take(1)
+        } catch (e: Exception) {
+            "?"
+        }
+        
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier

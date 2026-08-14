@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.xxx.carelorie.data.AppDatabase
+import com.xxx.carelorie.data.FoodRepository
 import com.xxx.carelorie.data.MacroDataRepository
 import com.xxx.carelorie.data.UserRepository
 import com.xxx.carelorie.data.remote.SupabaseRepository
@@ -16,6 +17,7 @@ import com.xxx.carelorie.ui.BottomNavBar
 import com.xxx.carelorie.ui.theme.CarelorieTheme
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
+import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
 class MainActivity : ComponentActivity() {
@@ -27,10 +29,12 @@ class MainActivity : ComponentActivity() {
         
         val supabaseRepository = SupabaseRepository()
         val macroRepository = MacroDataRepository(supabaseRepository)
+        val foodRepository = FoodRepository(supabaseRepository)
         
         val authViewModel = AuthViewModel(repository)
         val profileViewModel = ProfileViewModel(repository)
-        val dashboardViewModel = DashboardViewModel(repository, macroRepository)
+        val dashboardViewModel = DashboardViewModel(repository, macroRepository, foodRepository)
+        val foodSearchViewModel = FoodSearchViewModel(foodRepository)
         
         enableEdgeToEdge()
         setContent {
@@ -42,7 +46,8 @@ class MainActivity : ComponentActivity() {
                     BottomNavBar(
                         authViewModel = authViewModel, 
                         profileViewModel = profileViewModel,
-                        dashboardViewModel = dashboardViewModel
+                        dashboardViewModel = dashboardViewModel,
+                        foodSearchViewModel = foodSearchViewModel
                     )
                 }
             }

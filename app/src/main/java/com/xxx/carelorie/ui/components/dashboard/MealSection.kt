@@ -19,21 +19,41 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xxx.carelorie.data.remote.RemoteFoodLog
 
 @Composable
-fun MealSection() {
+fun MealSection(
+    todayLogs: List<RemoteFoodLog>,
+    onAddMealClick: (String) -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        MealCard(title = "Breakfast")
-        MealCard(title = "Lunch")
-        MealCard(title = "Dinner")
+        MealCard(
+            title = "Breakfast",
+            logs = todayLogs.filter { it.mealType.equals("Breakfast", ignoreCase = true) },
+            onAddClick = { onAddMealClick("Breakfast") }
+        )
+        MealCard(
+            title = "Lunch",
+            logs = todayLogs.filter { it.mealType.equals("Lunch", ignoreCase = true) },
+            onAddClick = { onAddMealClick("Lunch") }
+        )
+        MealCard(
+            title = "Dinner",
+            logs = todayLogs.filter { it.mealType.equals("Dinner", ignoreCase = true) },
+            onAddClick = { onAddMealClick("Dinner") }
+        )
     }
 }
 
 @Composable
-fun MealCard(title: String) {
+fun MealCard(
+    title: String,
+    logs: List<RemoteFoodLog>,
+    onAddClick: () -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
 
     Card(
@@ -85,7 +105,9 @@ fun MealCard(title: String) {
                 Surface(
                     shape = CircleShape,
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clickable { onAddClick() },
                     color = Color.Transparent
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -101,14 +123,19 @@ fun MealCard(title: String) {
             
             Spacer(modifier = Modifier.height(8.dp))
             
+            val totalProtein = logs.sumOf { it.protein.toDouble() }.toFloat()
+            val totalCarbs = logs.sumOf { it.carbs.toDouble() }.toFloat()
+            val totalFat = logs.sumOf { it.fat.toDouble() }.toFloat()
+            val totalCalories = logs.sumOf { it.calories.toDouble() }.toInt()
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(start = 44.dp)
             ) {
-                MacroChip(letter = "P", color = Color(0xFFE91E63)) // Protein - Pink
-                MacroChip(letter = "C", color = Color(0xFF2196F3)) // Carbs - Blue
-                MacroChip(letter = "F", color = Color(0xFF4CAF50)) // Fat - Green
-                MacroChip(letter = "C", color = Color(0xFFFF9800)) // Calories - Orange
+                MacroChip(letter = "P", color = Color(0xFFE91E63), value = totalProtein.toInt().toString())
+                MacroChip(letter = "C", color = Color(0xFF2196F3), value = totalCarbs.toInt().toString())
+                MacroChip(letter = "F", color = Color(0xFF4CAF50), value = totalFat.toInt().toString())
+                MacroChip(letter = "C", color = Color(0xFFFF9800), value = totalCalories.toString())
             }
             
             AnimatedVisibility(visible = expanded) {
@@ -117,11 +144,33 @@ fun MealCard(title: String) {
                         .fillMaxWidth()
                         .padding(top = 16.dp, start = 44.dp)
                 ) {
-                    Text(
-                        text = "No items logged yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (logs.isEmpty()) {
+                        Text(
+                            text = "No items logged yet.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        logs.forEach { log ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = log.foodName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "${log.calories} kcal",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -129,21 +178,29 @@ fun MealCard(title: String) {
 }
 
 @Composable
-fun MacroChip(letter: String, color: Color) {
+fun MacroChip(letter: String, color: Color, value: String) {
     Surface(
         modifier = Modifier
-            .width(48.dp)
             .height(24.dp),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
         color = MaterialTheme.colorScheme.surface
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(
                 text = letter,
                 color = color,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = value,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 12.sp
             )
         }
     }

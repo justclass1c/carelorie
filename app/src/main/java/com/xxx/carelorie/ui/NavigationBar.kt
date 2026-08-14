@@ -23,6 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import com.xxx.carelorie.AppNavigation
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
+import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
 data class Screens(val route: String, val label: String, val icon: ImageVector)
@@ -39,7 +40,8 @@ fun BottomNavBar(
     modifier: Modifier = Modifier, 
     authViewModel: AuthViewModel,
     profileViewModel: ProfileViewModel,
-    dashboardViewModel: DashboardViewModel
+    dashboardViewModel: DashboardViewModel,
+    foodSearchViewModel: FoodSearchViewModel
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -48,19 +50,21 @@ fun BottomNavBar(
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            if (currentDestination?.route != "login" && currentDestination?.route != "register") {
+            val route = currentDestination?.route
+            if (route != null && route != "login" && route != "register" && !route.startsWith("foodSearch")) {
                 NavigationBar(windowInsets = NavigationBarDefaults.windowInsets) {
                     entries.forEach { screen ->
+                        val isSelected = currentDestination.hierarchy.any { 
+                            it.route == screen.route || it.route?.startsWith("${screen.route}?") == true 
+                        }
                         NavigationBarItem(
-                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            selected = isSelected,
                             onClick = {
                                 navController.navigate(screen.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
                                     }
-                                    // Avoid multiple copies of the same destination when reselecting the same icon
                                     launchSingleTop = true
-                                    // Restore state when reselecting a previously selected icon
                                     restoreState = true
                                 }
                             },
@@ -82,7 +86,8 @@ fun BottomNavBar(
             modifier = Modifier.padding(contentPadding),
             authViewModel = authViewModel,
             profileViewModel = profileViewModel,
-            dashboardViewModel = dashboardViewModel
+            dashboardViewModel = dashboardViewModel,
+            foodSearchViewModel = foodSearchViewModel
         )
     }
 }

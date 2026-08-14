@@ -1,20 +1,25 @@
 package com.xxx.carelorie
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.xxx.carelorie.ui.screens.Dashboard
+import com.xxx.carelorie.ui.screens.FoodSearchScreen
 import com.xxx.carelorie.ui.screens.LoginScreen
 import com.xxx.carelorie.ui.screens.Profile
 import com.xxx.carelorie.ui.screens.RegisterScreen
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
+import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
 @Composable
@@ -23,7 +28,8 @@ fun AppNavigation(
     navController: NavHostController,
     authViewModel: AuthViewModel,
     profileViewModel: ProfileViewModel,
-    dashboardViewModel: DashboardViewModel
+    dashboardViewModel: DashboardViewModel,
+    foodSearchViewModel: FoodSearchViewModel
 ) {
     var currentUserId by rememberSaveable { mutableIntStateOf(-1) }
 
@@ -51,7 +57,7 @@ fun AppNavigation(
                 viewModel = authViewModel,
                 onRegisterSuccess = { userId ->
                     currentUserId = userId
-                    navController.navigate("profile/true") {
+                    navController.navigate("profile?isOnboarding=true") {
                         popUpTo("register") { inclusive = true }
                     }
                 }
@@ -59,22 +65,43 @@ fun AppNavigation(
         }
         
         composable("dashboard") {
-            Dashboard(
-                navController = navController, 
-                userId = currentUserId,
-                viewModel = dashboardViewModel
-            )
+            if (currentUserId != -1) {
+                Dashboard(
+                    navController = navController, 
+                    userId = currentUserId,
+                    viewModel = dashboardViewModel
+                )
+            } else {
+                // Fallback to login if somehow userId is lost
+                LaunchedEffect(Unit) {
+                    navController.navigate("login") {
+                        popUpTo(0)
+                    }
+                }
+            }
         }
 
         composable("food log") { }
         composable("goal") { }
 
-        composable("profile") {
-            Profile(navController = navController, userId = currentUserId, viewModel = profileViewModel, isOnboarding = false)
+        composable("foodSearch/{mealType}") { backStackEntry ->
+            val mealType = backStackEntry.arguments?.getString("mealType") ?: "Breakfast"
+            FoodSearchScreen(
+                navController = navController,
+                userId = currentUserId,
+                mealType = mealType,
+                viewModel = foodSearchViewModel
+            )
         }
 
-        composable("profile/{isOnboarding}") { backStackEntry ->
-            val isOnboarding = backStackEntry.arguments?.getString("isOnboarding")?.toBoolean() ?: false
+        composable(
+            route = "profile?isOnboarding={isOnboarding}",
+            arguments = listOf(navArgument("isOnboarding") {
+                type = NavType.BoolType
+                defaultValue = false
+            })
+        ) { backStackEntry ->
+            val isOnboarding = backStackEntry.arguments?.getBoolean("isOnboarding") ?: false
             Profile(navController = navController, userId = currentUserId, viewModel = profileViewModel, isOnboarding = isOnboarding)
         }
     }

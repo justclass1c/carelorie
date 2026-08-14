@@ -13,12 +13,25 @@ data class RemoteMacroIntake(
 
 @Serializable
 data class RemoteFoodLog(
-    val userId: Int,
-    val mealType: String, // e.g., "Breakfast"
-    val foodName: String,
-    val calories: Int,
-    val protein: Float,
-    val carbs: Float,
-    val fat: Float,
-    val createdAt: String
+    val id: Int? = null,
+    val userId: Int = -1,
+    val mealType: String = "",
+    val foodName: String = "",
+    val calories: Int = 0,
+    val protein: Float = 0f,
+    val carbs: Float = 0f,
+    val fat: Float = 0f,
+    val createdAt: String = ""
+)
+
+@Serializable
+data class RemoteFoodPreset(
+    val id: Int? = null,
+    val userId: Int? = null,
+    val name: String = "",
+    val calories: Int = 0,
+    val protein: Float = 0f,
+    val carbs: Float = 0f,
+    val fat: Float = 0f,
+    val imageUrl: String? = null
 )
