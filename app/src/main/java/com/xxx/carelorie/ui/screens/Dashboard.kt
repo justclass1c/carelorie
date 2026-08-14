@@ -11,6 +11,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -19,14 +22,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.xxx.carelorie.ui.components.dashboard.MacroRow
+import com.xxx.carelorie.ui.components.dashboard.MealSection
 import com.xxx.carelorie.ui.components.dashboard.ProgressPreview
+import com.xxx.carelorie.ui.viewmodels.DashboardEvent
+import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun Dashboard(navController: NavController, username: String) {
+fun Dashboard(navController: NavController, userId: Int, viewModel: DashboardViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
     val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMMM"))
-    val scrollState = rememberScrollState() // remember how far user has scrolled
+
+    LaunchedEffect(userId) {
+        viewModel.onEvent(DashboardEvent.LoadData(userId))
+    }
 
     Column(
         modifier = Modifier
@@ -39,7 +49,7 @@ fun Dashboard(navController: NavController, username: String) {
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "Welcome, $username",
+                text = "Welcome, ${uiState.username}.",
                 style = MaterialTheme.typography.headlineSmall,
             )
 
@@ -59,19 +69,15 @@ fun Dashboard(navController: NavController, username: String) {
             verticalArrangement = Arrangement.Top
         ) {
 
-            ProgressPreview()
+            ProgressPreview(weeklyData = uiState.weeklyIntake)
 
             Spacer(Modifier.height(20.dp))
 
-            MacroRow()
+            MacroRow(todayIntake = uiState.todayIntake)
 
+            Spacer(Modifier.height(20.dp))
 
+            MealSection()
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun DashboardPreview() {
-    Dashboard(navController = NavController(context = LocalContext.current), username = "name")
 }

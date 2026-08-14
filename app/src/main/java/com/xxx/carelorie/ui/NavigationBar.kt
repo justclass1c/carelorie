@@ -22,6 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.xxx.carelorie.AppNavigation
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
+import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
 data class Screens(val route: String, val label: String, val icon: ImageVector)
@@ -37,7 +38,8 @@ val entries = listOf( // list all screens for navigation bar here
 fun BottomNavBar(
     modifier: Modifier = Modifier, 
     authViewModel: AuthViewModel,
-    profileViewModel: ProfileViewModel
+    profileViewModel: ProfileViewModel,
+    dashboardViewModel: DashboardViewModel
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -79,7 +81,8 @@ fun BottomNavBar(
             navController = navController,
             modifier = Modifier.padding(contentPadding),
             authViewModel = authViewModel,
-            profileViewModel = profileViewModel
+            profileViewModel = profileViewModel,
+            dashboardViewModel = dashboardViewModel
         )
     }
 }

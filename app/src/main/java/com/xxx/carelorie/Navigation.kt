@@ -14,6 +14,7 @@ import com.xxx.carelorie.ui.screens.LoginScreen
 import com.xxx.carelorie.ui.screens.Profile
 import com.xxx.carelorie.ui.screens.RegisterScreen
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
+import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
 @Composable
@@ -21,7 +22,8 @@ fun AppNavigation(
     modifier: Modifier = Modifier,
     navController: NavHostController,
     authViewModel: AuthViewModel,
-    profileViewModel: ProfileViewModel
+    profileViewModel: ProfileViewModel,
+    dashboardViewModel: DashboardViewModel
 ) {
     var currentUserId by rememberSaveable { mutableIntStateOf(-1) }
 
@@ -56,13 +58,12 @@ fun AppNavigation(
             )
         }
         
-        // Handling registration success to navigate to profile setup
-        // We observe the AuthViewModel's state in the screen itself, 
-        // but we need to capture the ID when it succeeds.
-        // Let's refine the RegisterScreen to handle navigation to Profile.
-
         composable("dashboard") {
-            Dashboard(navController = navController, username = "User $currentUserId")
+            Dashboard(
+                navController = navController, 
+                userId = currentUserId,
+                viewModel = dashboardViewModel
+            )
         }
 
         composable("food log") { }
