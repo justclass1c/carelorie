@@ -1,24 +1,44 @@
 package com.xxx.carelorie.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.xxx.carelorie.ui.theme.CarelorieTheme
+import com.xxx.carelorie.ui.viewmodels.AuthUiEvent
+import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit, navController: NavController) {
-    // create mutable states for two variables
-    var email by rememberSaveable { (mutableStateOf("")) }
-    var password by rememberSaveable { (mutableStateOf("")) }
+fun LoginScreen(onLoginSuccess: (Int) -> Unit, navController: NavController, viewModel: AuthViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(uiState.isSuccess) {
+        val userId = uiState.successUserId
+        if (uiState.isSuccess && userId != null) {
+            onLoginSuccess(userId)
+            viewModel.onEvent(AuthUiEvent.ResetState)
+        }
+    }
+
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.onEvent(AuthUiEvent.ErrorConsumed)
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -34,8 +54,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit, navController: NavController) {
 
         // email text box
         OutlinedTextField(
-            value = email, // which variable is assigned for input
-            onValueChange = { email = it },
+            value = uiState.email,
+            onValueChange = { viewModel.onEvent(AuthUiEvent.EmailChanged(it)) },
             label = { Text("Email") },
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
@@ -44,16 +64,21 @@ fun LoginScreen(onLoginSuccess: () -> Unit, navController: NavController) {
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
-            value = password, // which variable is assigned for input
-            onValueChange = { password = it },
+            value = uiState.password,
+            onValueChange = { viewModel.onEvent(AuthUiEvent.PasswordChanged(it)) },
             label = { Text("Password") },
             shape = RoundedCornerShape(10.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                // properties here
                 focusedBorderColor = MaterialTheme.colorScheme.primary
             ),
-            singleLine = true, // lock text into using only one line
-            visualTransformation = PasswordVisualTransformation(),
+            singleLine = true,
+            visualTransformation = if (uiState.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                val icon = if (uiState.isPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                IconButton(onClick = { viewModel.onEvent(AuthUiEvent.TogglePasswordVisibility) }) {
+                    Icon(imageVector = icon, contentDescription = "Toggle password visibility")
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         )
         
@@ -64,9 +89,8 @@ fun LoginScreen(onLoginSuccess: () -> Unit, navController: NavController) {
             horizontalArrangement = Arrangement.Center
         ) {
             Button(
-                onClick = { }, // navigate to home screen
-                shape = RoundedCornerShape(20.dp), // size here determines border radius / rounding
-                 //colors = ButtonColors(),
+                onClick = { navController.navigate("register") },
+                shape = RoundedCornerShape(20.dp),
                 contentPadding = PaddingValues(vertical = 12.dp, horizontal = 36.dp),
             ) {
                 Text(text = "Register")
@@ -76,12 +100,17 @@ fun LoginScreen(onLoginSuccess: () -> Unit, navController: NavController) {
 
             Button(
                 onClick = {
-                    navController.navigate("dashboard")
-                }, // navigate to home screen
+                    viewModel.onEvent(AuthUiEvent.LoginClicked)
+                },
                 shape = RoundedCornerShape(20.dp),
                 contentPadding = PaddingValues(vertical = 12.dp, horizontal = 36.dp),
+                enabled = !uiState.isLoading
             ) {
-                Text(text = "Login")
+                if (uiState.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Text(text = "Login")
+                }
             }
         }
     }
@@ -91,6 +120,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit, navController: NavController) {
 @Composable
 fun LoginScreenPreview() {
     CarelorieTheme {
-        LoginScreen(onLoginSuccess = {}, navController = NavController(context = LocalContext.current))
+        Text("Login Screen Preview")
     }
 }

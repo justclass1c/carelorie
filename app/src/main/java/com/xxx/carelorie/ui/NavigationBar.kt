@@ -21,6 +21,8 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.xxx.carelorie.AppNavigation
+import com.xxx.carelorie.ui.viewmodels.AuthViewModel
+import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
 data class Screens(val route: String, val label: String, val icon: ImageVector)
 val entries = listOf( // list all screens for navigation bar here
@@ -32,7 +34,11 @@ val entries = listOf( // list all screens for navigation bar here
 )
 
 @Composable
-fun BottomNavBar(modifier: Modifier = Modifier) {
+fun BottomNavBar(
+    modifier: Modifier = Modifier, 
+    authViewModel: AuthViewModel,
+    profileViewModel: ProfileViewModel
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -40,7 +46,7 @@ fun BottomNavBar(modifier: Modifier = Modifier) {
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            if (currentDestination?.route != "login") {
+            if (currentDestination?.route != "login" && currentDestination?.route != "register") {
                 NavigationBar(windowInsets = NavigationBarDefaults.windowInsets) {
                     entries.forEach { screen ->
                         NavigationBarItem(
@@ -71,7 +77,9 @@ fun BottomNavBar(modifier: Modifier = Modifier) {
     ) { contentPadding ->
         AppNavigation(
             navController = navController,
-            modifier = Modifier.padding(contentPadding)
+            modifier = Modifier.padding(contentPadding),
+            authViewModel = authViewModel,
+            profileViewModel = profileViewModel
         )
     }
 }
