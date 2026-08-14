@@ -43,7 +43,7 @@ class DashboardViewModel(
         _uiState.update { it.copy(isLoading = true) }
         viewModelScope.launch {
             val profile = userRepository.getProfile(userId)
-            val macroData = macroRepository.fetchWeeklyMacroIntake()
+            val macroData = macroRepository.fetchWeeklyMacroIntake(userId)
             
             _uiState.update { 
                 it.copy(

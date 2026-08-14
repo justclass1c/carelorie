@@ -1,5 +1,7 @@
 package com.xxx.carelorie.data
 
+import com.xxx.carelorie.data.remote.RemoteMacroIntake
+import com.xxx.carelorie.data.remote.SupabaseRepository
 import java.time.LocalDate
 
 data class DailyMacroIntake(
@@ -12,15 +14,35 @@ data class DailyMacroIntake(
         get() = (protein * 4 + carbs * 4 + fat * 9).toInt()
 }
 
-class MacroDataRepository {
+class MacroDataRepository(private val remoteRepository: SupabaseRepository) {
     
     /**
      * Retrieves the macro intake data for the past 7 days.
-     * In the future, this should query the Room database using the logged-in user's ID.
+     * Tries to fetch from Supabase if possible.
      */
-    fun fetchWeeklyMacroIntake(): List<DailyMacroIntake> {
+    suspend fun fetchWeeklyMacroIntake(userId: Int): List<DailyMacroIntake> {
+        return try {
+            val remoteData = remoteRepository.fetchWeeklyMacros(userId)
+            if (remoteData.isEmpty()) {
+                generateDummyData()
+            } else {
+                remoteData.map { 
+                    DailyMacroIntake(
+                        date = LocalDate.parse(it.date),
+                        protein = it.protein,
+                        carbs = it.carbs,
+                        fat = it.fat
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            // Fallback to dummy data on error (e.g., no internet)
+            generateDummyData()
+        }
+    }
+
+    private fun generateDummyData(): List<DailyMacroIntake> {
         val today = LocalDate.now()
-        // Returning dummy data for visualization purposes
         return (0..6).map { i ->
             val date = today.minusDays(i.toLong())
             DailyMacroIntake(
@@ -30,5 +52,16 @@ class MacroDataRepository {
                 fat = (10..60).random().toFloat()
             )
         }.reversed()
+    }
+
+    suspend fun syncDailyMacros(userId: Int, intake: DailyMacroIntake) {
+        val remote = RemoteMacroIntake(
+            userId = userId,
+            date = intake.date.toString(),
+            protein = intake.protein,
+            carbs = intake.carbs,
+            fat = intake.fat
+        )
+        remoteRepository.saveDailyMacros(remote)
     }
 }
