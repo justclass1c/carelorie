@@ -1,10 +1,10 @@
 package com.xxx.carelorie.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -16,27 +16,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
-import com.xxx.carelorie.ui.components.dashboard.MacroRow
-import com.xxx.carelorie.ui.components.dashboard.MealSection
-import com.xxx.carelorie.ui.components.dashboard.ProgressPreview
+import com.xxx.carelorie.ui.components.dashboard.CarelorieCalendar
+import com.xxx.carelorie.ui.components.dashboard.StreakBar
+import com.xxx.carelorie.ui.components.dashboard.WeightGraph
+import com.xxx.carelorie.ui.components.dashboard.WeightUpdateDialog
 import com.xxx.carelorie.ui.viewmodels.DashboardEvent
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
+import java.time.YearMonth
 
 @Composable
-fun Dashboard(navController: NavController, userId: Int, viewModel: DashboardViewModel) {
+fun GoalScreen(navController: NavController, userId: Int, viewModel: DashboardViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMMM"))
     val lifecycleOwner = LocalLifecycleOwner.current
+    
+    var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
+    var showWeightDialog by remember { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner, userId) {
         val observer = LifecycleEventObserver { _, event ->
@@ -64,49 +68,50 @@ fun Dashboard(navController: NavController, userId: Int, viewModel: DashboardVie
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // greeting and date at the top left
-            Column(
-                horizontalAlignment = Alignment.Start
-            ) {
-                Text(
-                    text = "Welcome, ${uiState.username}.",
-                    style = MaterialTheme.typography.headlineSmall,
-                )
+            CarelorieCalendar(
+                currentMonth = selectedMonth,
+                trackedDates = uiState.trackedDates,
+                onMonthChange = { newMonth ->
+                    selectedMonth = newMonth
+                    viewModel.onEvent(DashboardEvent.ChangeMonth(userId, newMonth))
+                }
+            )
 
-                Text(
-                    text = currentDate,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontSize = 20.sp
-                )
+            Spacer(Modifier.height(16.dp))
+
+            StreakBar(streakCount = uiState.currentStreak)
+
+            Spacer(Modifier.height(16.dp))
+
+            WeightGraph(
+                yearMonth = selectedMonth,
+                weightHistory = uiState.weightHistory
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Button(
+                onClick = { showWeightDialog = true },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            ) {
+                Text("Update Weight")
             }
 
-            Spacer(Modifier.height(20.dp))
-
-            // content below
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Top
-            ) {
-
-                ProgressPreview(weeklyData = uiState.weeklyIntake)
-
-                Spacer(Modifier.height(20.dp))
-
-                MacroRow(todayIntake = uiState.todayIntake)
-
-                Spacer(Modifier.height(20.dp))
-
-                MealSection(
-                    todayLogs = uiState.todayLogs,
-                    onAddMealClick = { mealType ->
-                        navController.navigate("foodSearch/$mealType")
-                    }
-                )
-            }
+            Spacer(Modifier.height(32.dp))
         }
+    }
+
+    if (showWeightDialog) {
+        WeightUpdateDialog(
+            onDismiss = { showWeightDialog = false },
+            onConfirm = { weight, date ->
+                viewModel.onEvent(DashboardEvent.UpdateWeight(userId, weight, date))
+                showWeightDialog = false
+            }
+        )
     }
 }

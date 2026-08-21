@@ -13,14 +13,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.xxx.carelorie.ui.screens.Dashboard
-import com.xxx.carelorie.ui.screens.FoodLogScreen
 import com.xxx.carelorie.ui.screens.FoodSearchScreen
+import com.xxx.carelorie.ui.screens.GoalScreen
 import com.xxx.carelorie.ui.screens.LoginScreen
 import com.xxx.carelorie.ui.screens.Profile
 import com.xxx.carelorie.ui.screens.RegisterScreen
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
-import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
@@ -31,7 +30,6 @@ fun AppNavigation(
     authViewModel: AuthViewModel,
     profileViewModel: ProfileViewModel,
     dashboardViewModel: DashboardViewModel,
-    foodLogViewModel: FoodLogViewModel,
     foodSearchViewModel: FoodSearchViewModel
 ) {
     var currentUserId by rememberSaveable { mutableIntStateOf(-1) }
@@ -84,16 +82,22 @@ fun AppNavigation(
             }
         }
 
-        composable("food log") {
+        composable("food log") { }
+        composable("goal") {
             if (currentUserId != -1) {
-                FoodLogScreen(
+                GoalScreen(
                     navController = navController,
                     userId = currentUserId,
-                    viewModel = foodLogViewModel
+                    viewModel = dashboardViewModel
                 )
+            } else {
+                LaunchedEffect(Unit) {
+                    navController.navigate("login") {
+                        popUpTo(0)
+                    }
+                }
             }
         }
-        composable("goal") { }
 
         composable("foodSearch/{mealType}") { backStackEntry ->
             val mealType = backStackEntry.arguments?.getString("mealType") ?: "Breakfast"

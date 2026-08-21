@@ -17,7 +17,6 @@ import com.xxx.carelorie.ui.BottomNavBar
 import com.xxx.carelorie.ui.theme.CarelorieTheme
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
-import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
@@ -26,7 +25,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         val database = AppDatabase.getDatabase(this)
-        val repository = UserRepository(database.userDao(), database.userProfileDao())
+        val repository = UserRepository(database.userDao(), database.userProfileDao(), database.weightDao())
         
         val supabaseRepository = SupabaseRepository()
         val macroRepository = MacroDataRepository(supabaseRepository)
@@ -35,7 +34,6 @@ class MainActivity : ComponentActivity() {
         val authViewModel = AuthViewModel(repository)
         val profileViewModel = ProfileViewModel(repository)
         val dashboardViewModel = DashboardViewModel(repository, macroRepository, foodRepository)
-        val foodLogViewModel = FoodLogViewModel(foodRepository)
         val foodSearchViewModel = FoodSearchViewModel(foodRepository)
         
         enableEdgeToEdge()
@@ -49,7 +47,6 @@ class MainActivity : ComponentActivity() {
                         authViewModel = authViewModel, 
                         profileViewModel = profileViewModel,
                         dashboardViewModel = dashboardViewModel,
-                        foodLogViewModel = foodLogViewModel,
                         foodSearchViewModel = foodSearchViewModel
                     )
                 }

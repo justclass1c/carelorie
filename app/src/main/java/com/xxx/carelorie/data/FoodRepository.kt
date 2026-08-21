@@ -66,4 +66,14 @@ class FoodRepository(private val supabaseRepository: SupabaseRepository) {
             emptyList()
         }
     }
+
+    suspend fun getMonthlyLogs(userId: Int, yearMonth: java.time.YearMonth): List<RemoteFoodLog> {
+        return try {
+            val startDate = yearMonth.atDay(1).toString()
+            supabaseRepository.fetchFoodLogsRange(userId, startDate)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
 }
