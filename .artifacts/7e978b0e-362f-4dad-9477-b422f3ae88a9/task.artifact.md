@@ -1,13 +1,12 @@
-# Weight Tracking Enhancement Tasks
+# Goal Screen Landscape UI Tasks
 
-- [x] **ViewModel**
-    - [x] Update `DashboardEvent.UpdateWeight` to include `LocalDate`
-    - [x] Update `updateWeight` logic in `DashboardViewModel`
-- [x] **UI Components**
-    - [x] Enhance `WeightUpdateDialog` with `DatePicker`
-    - [x] Update `WeightGraph` to be square and centered
-- [x] **Screens**
-    - [x] Update `GoalScreen` to handle date from dialog
-- [ ] **Verification**
-    - [ ] Verify weight entry for specific dates
-    - [ ] Verify square graph layout
+- [x] **UI Component Updates**
+    - [x] Update `CarelorieCalendar.kt` to accept a `Modifier`
+    - [x] Update `WeightGraph.kt` to accept a `Modifier` and remove hardcoded dimensions
+- [x] **Goal Screen Layout**
+    - [x] Detect orientation using `LocalConfiguration`
+    - [x] Implement Portrait layout (Current stack)
+    - [x] Implement Landscape layout (Streak top, Calendar left, Graph right)
+- [x] **Verification**
+    - [x] Verify Portrait layout remains correct
+    - [x] Verify Landscape layout structure and responsiveness

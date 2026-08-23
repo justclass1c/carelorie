@@ -2,6 +2,7 @@ package com.xxx.carelorie.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.data.UserProfile
 import com.xxx.carelorie.data.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +24,8 @@ data class ProfileUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isSaveSuccess: Boolean = false,
-    val isOnboarding: Boolean = false
+    val isOnboarding: Boolean = false,
+    val isLoggedOut: Boolean = false
 )
 
 sealed class ProfileUiEvent {
@@ -35,11 +37,15 @@ sealed class ProfileUiEvent {
     data class ExperienceChanged(val experience: String) : ProfileUiEvent()
     object ToggleEditMode : ProfileUiEvent()
     object SaveProfile : ProfileUiEvent()
+    object Logout : ProfileUiEvent()
     object ErrorConsumed : ProfileUiEvent()
     object ResetSaveStatus : ProfileUiEvent()
 }
 
-class ProfileViewModel(private val repository: UserRepository) : ViewModel() {
+class ProfileViewModel(
+    private val repository: UserRepository,
+    private val sessionManager: SessionManager
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
@@ -54,9 +60,15 @@ class ProfileViewModel(private val repository: UserRepository) : ViewModel() {
             is ProfileUiEvent.ExperienceChanged -> _uiState.update { it.copy(liftingExperience = event.experience) }
             is ProfileUiEvent.ToggleEditMode -> _uiState.update { it.copy(isEditMode = !it.isEditMode) }
             is ProfileUiEvent.SaveProfile -> saveProfile()
+            is ProfileUiEvent.Logout -> logout()
             is ProfileUiEvent.ErrorConsumed -> _uiState.update { it.copy(errorMessage = null) }
             is ProfileUiEvent.ResetSaveStatus -> _uiState.update { it.copy(isSaveSuccess = false) }
         }
+    }
+
+    private fun logout() {
+        sessionManager.clearSession()
+        _uiState.update { it.copy(isLoggedOut = true) }
     }
 
     private fun loadProfile(userId: Int, isOnboarding: Boolean) {

@@ -1,8 +1,11 @@
 package com.xxx.carelorie.ui.screens
 
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -38,6 +42,8 @@ import java.time.YearMonth
 fun GoalScreen(navController: NavController, userId: Int, viewModel: DashboardViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     
     var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
     var showWeightDialog by remember { mutableStateOf(false) }
@@ -72,33 +78,81 @@ fun GoalScreen(navController: NavController, userId: Int, viewModel: DashboardVi
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            CarelorieCalendar(
-                currentMonth = selectedMonth,
-                trackedDates = uiState.trackedDates,
-                onMonthChange = { newMonth ->
-                    selectedMonth = newMonth
-                    viewModel.onEvent(DashboardEvent.ChangeMonth(userId, newMonth))
+            if (isLandscape) {
+                // Landscape Layout
+                StreakBar(streakCount = uiState.currentStreak)
+
+                Spacer(Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    CarelorieCalendar(
+                        modifier = Modifier.weight(1f),
+                        currentMonth = selectedMonth,
+                        trackedDates = uiState.trackedDates,
+                        onMonthChange = { newMonth ->
+                            selectedMonth = newMonth
+                            viewModel.onEvent(DashboardEvent.ChangeMonth(userId, newMonth))
+                        }
+                    )
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        WeightGraph(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(1f),
+                            yearMonth = selectedMonth,
+                            weightHistory = uiState.weightHistory
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Button(
+                            onClick = { showWeightDialog = true },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                        ) {
+                            Text("Update Weight")
+                        }
+                    }
                 }
-            )
+            } else {
+                // Portrait Layout
+                CarelorieCalendar(
+                    currentMonth = selectedMonth,
+                    trackedDates = uiState.trackedDates,
+                    onMonthChange = { newMonth ->
+                        selectedMonth = newMonth
+                        viewModel.onEvent(DashboardEvent.ChangeMonth(userId, newMonth))
+                    }
+                )
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
-            StreakBar(streakCount = uiState.currentStreak)
+                StreakBar(streakCount = uiState.currentStreak)
 
-            Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
-            WeightGraph(
-                yearMonth = selectedMonth,
-                weightHistory = uiState.weightHistory
-            )
+                WeightGraph(
+                    modifier = Modifier
+                        .fillMaxWidth(0.8f)
+                        .aspectRatio(1f),
+                    yearMonth = selectedMonth,
+                    weightHistory = uiState.weightHistory
+                )
 
-            Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
 
-            Button(
-                onClick = { showWeightDialog = true },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-            ) {
-                Text("Update Weight")
+                Button(
+                    onClick = { showWeightDialog = true },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                ) {
+                    Text("Update Weight")
+                }
             }
 
             Spacer(Modifier.height(32.dp))

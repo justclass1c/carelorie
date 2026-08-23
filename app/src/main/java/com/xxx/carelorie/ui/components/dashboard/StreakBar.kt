@@ -25,7 +25,7 @@ fun StreakBar(streakCount: Int) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
-            .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
             .padding(8.dp)
     ) {
         Text(
@@ -37,7 +37,6 @@ fun StreakBar(streakCount: Int) {
         
         // Sketch shows two rows of boxes
         val boxesPerRow = 15
-        val totalBoxes = 30
         
         Column {
             StreakRow(count = streakCount, startIdx = 0, limit = boxesPerRow)
@@ -48,6 +47,9 @@ fun StreakBar(streakCount: Int) {
 
 @Composable
 fun StreakRow(count: Int, startIdx: Int, limit: Int) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val outlineColor = MaterialTheme.colorScheme.outline
+    
     Row(modifier = Modifier.padding(vertical = 2.dp)) {
         for (i in 0 until limit) {
             val currentIdx = startIdx + i
@@ -56,8 +58,8 @@ fun StreakRow(count: Int, startIdx: Int, limit: Int) {
                 modifier = Modifier
                     .size(20.dp)
                     .padding(2.dp)
-                    .border(1.dp, Color.Black)
-                    .background(if (isFilled) Color.Blue else Color.Transparent)
+                    .border(1.dp, outlineColor)
+                    .background(if (isFilled) primaryColor else Color.Transparent)
             )
         }
     }

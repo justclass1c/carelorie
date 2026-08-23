@@ -37,6 +37,14 @@ fun Profile(navController: NavController, userId: Int, viewModel: ProfileViewMod
         }
     }
 
+    LaunchedEffect(uiState.isLoggedOut) {
+        if (uiState.isLoggedOut) {
+            navController.navigate("login") {
+                popUpTo(0)
+            }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Top,
@@ -116,6 +124,16 @@ fun Profile(navController: NavController, userId: Int, viewModel: ProfileViewMod
             }
         } else {
             ProfileViewSection(uiState = uiState)
+            
+            Spacer(Modifier.height(32.dp))
+            
+            OutlinedButton(
+                onClick = { viewModel.onEvent(ProfileUiEvent.Logout) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("Logout")
+            }
         }
     }
 }

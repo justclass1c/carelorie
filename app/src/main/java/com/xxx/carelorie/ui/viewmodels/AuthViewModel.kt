@@ -2,6 +2,7 @@ package com.xxx.carelorie.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.data.User
 import com.xxx.carelorie.data.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +36,10 @@ sealed class AuthUiEvent {
     object ResetState : AuthUiEvent()
 }
 
-class AuthViewModel(private val repository: UserRepository) : ViewModel() {
+class AuthViewModel(
+    private val repository: UserRepository,
+    private val sessionManager: SessionManager
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -108,7 +112,11 @@ class AuthViewModel(private val repository: UserRepository) : ViewModel() {
 
             val result = repository.registerUser(User(email = email, password = password))
             if (result.isSuccess) {
-                _uiState.update { it.copy(isLoading = false, isSuccess = true, successUserId = result.getOrNull()) }
+                val userId = result.getOrNull()
+                if (userId != null) {
+                    sessionManager.saveUserId(userId)
+                }
+                _uiState.update { it.copy(isLoading = false, isSuccess = true, successUserId = userId) }
             } else {
                 _uiState.update { 
                     it.copy(
@@ -133,6 +141,7 @@ class AuthViewModel(private val repository: UserRepository) : ViewModel() {
             _uiState.update { it.copy(isLoading = true) }
             val user = repository.getUserByEmail(email)
             if (user != null && user.password == password) {
+                sessionManager.saveUserId(user.userId)
                 _uiState.update { it.copy(isLoading = false, isSuccess = true, successUserId = user.userId) }
             } else {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Invalid email or password") }

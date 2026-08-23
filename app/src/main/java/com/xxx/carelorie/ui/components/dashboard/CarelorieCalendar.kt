@@ -34,6 +34,7 @@ import java.util.Locale
 
 @Composable
 fun CarelorieCalendar(
+    modifier: Modifier = Modifier,
     currentMonth: YearMonth,
     trackedDates: Set<LocalDate>,
     onMonthChange: (YearMonth) -> Unit
@@ -47,7 +48,7 @@ fun CarelorieCalendar(
     val allCells = placeholders + days
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(16.dp)
     ) {
@@ -107,7 +108,7 @@ fun CarelorieCalendar(
                         text = date.dayOfMonth.toString(),
                         modifier = cellModifier.padding(4.dp),
                         textAlign = TextAlign.Center,
-                        color = if (isTracked) Color.Blue else Color.Black,
+                        color = if (isTracked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
                         fontWeight = if (isTracked) FontWeight.Bold else FontWeight.Normal
                     )
                 } else {
@@ -122,9 +123,9 @@ fun CarelorieCalendar(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Indicator("Untracked", Color.Black)
+            Indicator("Untracked", MaterialTheme.colorScheme.onBackground)
             Spacer(Modifier.size(16.dp))
-            Indicator("Tracked", Color.Blue)
+            Indicator("Tracked", MaterialTheme.colorScheme.primary)
         }
     }
 }

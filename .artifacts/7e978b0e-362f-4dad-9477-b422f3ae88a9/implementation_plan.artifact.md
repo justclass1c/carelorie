@@ -1,30 +1,32 @@
-# Weight Tracking Enhancement Implementation Plan
+# Goal Screen Landscape UI Implementation Plan
 
-Enhance the weight tracking feature by adding date selection to the update dialog and improving the graph visualization.
+Add a dedicated landscape layout for the Goal screen to improve usability on wide screens.
 
 ## Proposed Changes
 
-### ViewModel
-
-#### [MODIFY] [DashboardViewModel.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/viewmodels/DashboardViewModel.kt)
-- Update `DashboardEvent.UpdateWeight` to include a `LocalDate`.
-- Update `updateWeight` method to use the user-selected date instead of defaulting to today.
-
 ### UI Components
 
-#### [MODIFY] [WeightUpdateDialog.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/WeightUpdateDialog.kt)
-- Add a date selection field that triggers a `DatePickerDialog`.
-- Default the date to `LocalDate.now()`.
-- Pass both the weight and the selected date back to the caller.
-
 #### [MODIFY] [WeightGraph.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/WeightGraph.kt)
-- Change the container `Box` to be square using `aspectRatio(1f)`.
-- Adjust the internal graph drawing logic to ensure the axes and data points are centered within the square container.
+- Add a `modifier: Modifier = Modifier` parameter to the `WeightGraph` function.
+- Replace the hardcoded `fillMaxWidth(0.8f)` and `aspectRatio(1f)` with the passed `modifier`.
+- Move the default styling (`aspectRatio(1f)`, etc.) to the call sites in `Goal.kt` to allow different layouts in portrait vs. landscape.
+
+#### [MODIFY] [CarelorieCalendar.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/CarelorieCalendar.kt)
+- Add a `modifier: Modifier = Modifier` parameter to the `CarelorieCalendar` function.
+- Apply this `modifier` to the root `Column`.
 
 ### Screens
 
 #### [MODIFY] [Goal.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/screens/Goal.kt)
-- Update the `WeightUpdateDialog` integration to handle the new date parameter.
+- Use `LocalConfiguration.current.orientation` to detect the device orientation.
+- Implement two layout branches:
+    - **Portrait**: Current vertical stack (Calendar -> Streak -> Graph -> Button).
+    - **Landscape**:
+        - `StreakBar` at the top (full width).
+        - A `Row` below the streak containing:
+            - `CarelorieCalendar` (weighted to take left half).
+            - A `Column` (weighted to take right half) containing the `WeightGraph` and "Update Weight" button.
+- Ensure the layout is scrollable in both orientations if content exceeds screen height.
 
 ## Verification Plan
 
@@ -32,8 +34,10 @@ Enhance the weight tracking feature by adding date selection to the update dialo
 - Build successful: `app:assembleDebug`.
 
 ### Manual Verification
-- Open the Weight Update dialog.
-- Verify the current date is shown by default.
-- Click to change the date and verify the selection works.
-- Save a weight for a past date and verify the graph updates correctly.
-- Verify the graph box is square and centered on the Goal screen.
+- Deploy to a device/emulator.
+- Verify portrait layout remains unchanged.
+- Rotate the device to landscape and verify:
+    - `StreakBar` is at the top.
+    - `Calendar` is on the left.
+    - `WeightGraph` is on the right.
+    - "Update Weight" button is appropriately placed (e.g., below the graph or at the bottom of the right column).

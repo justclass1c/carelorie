@@ -21,6 +21,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.xxx.carelorie.AppNavigation
+import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
@@ -41,7 +42,8 @@ fun BottomNavBar(
     authViewModel: AuthViewModel,
     profileViewModel: ProfileViewModel,
     dashboardViewModel: DashboardViewModel,
-    foodSearchViewModel: FoodSearchViewModel
+    foodSearchViewModel: FoodSearchViewModel,
+    sessionManager: SessionManager
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -87,7 +89,8 @@ fun BottomNavBar(
             authViewModel = authViewModel,
             profileViewModel = profileViewModel,
             dashboardViewModel = dashboardViewModel,
-            foodSearchViewModel = foodSearchViewModel
+            foodSearchViewModel = foodSearchViewModel,
+            sessionManager = sessionManager
         )
     }
 }

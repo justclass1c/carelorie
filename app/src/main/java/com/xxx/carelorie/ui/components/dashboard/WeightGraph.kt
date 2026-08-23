@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -25,23 +26,26 @@ import java.time.YearMonth
 
 @Composable
 fun WeightGraph(
+    modifier: Modifier = Modifier,
     yearMonth: YearMonth,
     weightHistory: List<WeightRecord>
 ) {
     val daysInMonth = yearMonth.lengthOfMonth()
     val monthPrefix = yearMonth.toString() // YYYY-MM
     val textMeasurer = rememberTextMeasurer()
-    
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val outlineColor = MaterialTheme.colorScheme.outline
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+    val onBackground = MaterialTheme.colorScheme.onBackground
+
     val monthlyWeights = weightHistory
         .filter { it.date.startsWith(monthPrefix) }
         .sortedBy { it.date }
 
     Box(
-        modifier = Modifier
-            .fillMaxWidth(0.8f) // Reduced width to fit better on screen
-            .aspectRatio(1f) // Square box
+        modifier = modifier
             .padding(16.dp)
-            .border(1.dp, Color.Black)
+            .border(1.dp, outlineColor)
             .padding(8.dp)
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -68,7 +72,7 @@ fun WeightGraph(
             
             drawPath(
                 path = axisPath,
-                color = Color.Black,
+                color = outlineColor,
                 style = Stroke(width = 3.dp.toPx()) // Thicker axis lines
             )
 
@@ -78,7 +82,7 @@ fun WeightGraph(
                 lineTo(paddingLeft, paddingTop)
                 lineTo(paddingLeft + arrowSize / 2, paddingTop + arrowSize)
             }
-            drawPath(yArrow, color = Color.Black, style = Stroke(width = 3.dp.toPx()))
+            drawPath(yArrow, color = outlineColor, style = Stroke(width = 3.dp.toPx()))
 
             // X-axis arrow head (pointing right)
             val xArrow = Path().apply {
@@ -86,20 +90,20 @@ fun WeightGraph(
                 lineTo(width - arrowSize, height - paddingBottom)
                 lineTo(width - arrowSize - arrowSize, height - paddingBottom + arrowSize / 2)
             }
-            drawPath(xArrow, color = Color.Black, style = Stroke(width = 3.dp.toPx()))
+            drawPath(xArrow, color = outlineColor, style = Stroke(width = 3.dp.toPx()))
 
             // Axis Labels
             drawText(
                 textMeasurer = textMeasurer,
                 text = "Weight (kg)",
-                topLeft = Offset(paddingLeft - 40.dp.toPx(), paddingTop - 30.dp.toPx()),
-                style = TextStyle(fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                topLeft = Offset(paddingLeft - 60.dp.toPx(), paddingTop - 35.dp.toPx()),
+                style = TextStyle(fontSize = 11.sp, color = onBackground, fontWeight = FontWeight.Bold)
             )
             drawText(
                 textMeasurer = textMeasurer,
                 text = "Days",
-                topLeft = Offset(width - 50.dp.toPx(), height - paddingBottom - 25.dp.toPx()),
-                style = TextStyle(fontSize = 12.sp, color = Color.Black, fontWeight = FontWeight.Bold)
+                topLeft = Offset(width - 40.dp.toPx(), height - paddingBottom + 10.dp.toPx()),
+                style = TextStyle(fontSize = 11.sp, color = onBackground, fontWeight = FontWeight.Bold)
             )
 
             if (monthlyWeights.isNotEmpty()) {
@@ -138,21 +142,21 @@ fun WeightGraph(
                     
                     drawPath(
                         path = path,
-                        color = Color.Blue,
+                        color = primaryColor,
                         style = Stroke(width = 4f)
                     )
                 }
                 
                 // Draw points and labels
                 points.forEach { (point, day, weight) ->
-                    drawCircle(color = Color.Blue, radius = 6f, center = point)
+                    drawCircle(color = primaryColor, radius = 6f, center = point)
                     
                     // Draw point label (e.g. "18th: 75kg")
                     drawText(
                         textMeasurer = textMeasurer,
                         text = "${day}: ${weight}kg",
                         topLeft = Offset(point.x - 20f, point.y - 35f),
-                        style = TextStyle(fontSize = 9.sp, color = Color.DarkGray, fontWeight = FontWeight.Bold)
+                        style = TextStyle(fontSize = 9.sp, color = onSurfaceVariant, fontWeight = FontWeight.Bold)
                     )
                 }
             }

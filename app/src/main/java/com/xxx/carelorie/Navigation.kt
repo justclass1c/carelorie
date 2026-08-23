@@ -12,6 +12,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.ui.screens.Dashboard
 import com.xxx.carelorie.ui.screens.FoodSearchScreen
 import com.xxx.carelorie.ui.screens.GoalScreen
@@ -30,13 +31,15 @@ fun AppNavigation(
     authViewModel: AuthViewModel,
     profileViewModel: ProfileViewModel,
     dashboardViewModel: DashboardViewModel,
-    foodSearchViewModel: FoodSearchViewModel
+    foodSearchViewModel: FoodSearchViewModel,
+    sessionManager: SessionManager
 ) {
-    var currentUserId by rememberSaveable { mutableIntStateOf(-1) }
+    val savedUserId = sessionManager.getUserId()
+    var currentUserId by rememberSaveable { mutableIntStateOf(savedUserId) }
 
     NavHost(
         navController = navController,
-        startDestination = "login",
+        startDestination = if (savedUserId != -1) "dashboard" else "login",
         modifier = modifier
     ) {
         composable("login") {

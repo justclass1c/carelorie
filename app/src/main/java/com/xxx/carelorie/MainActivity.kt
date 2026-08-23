@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import com.xxx.carelorie.data.AppDatabase
 import com.xxx.carelorie.data.FoodRepository
 import com.xxx.carelorie.data.MacroDataRepository
+import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.data.UserRepository
 import com.xxx.carelorie.data.remote.SupabaseRepository
 import com.xxx.carelorie.ui.BottomNavBar
@@ -26,13 +27,14 @@ class MainActivity : ComponentActivity() {
         
         val database = AppDatabase.getDatabase(this)
         val repository = UserRepository(database.userDao(), database.userProfileDao(), database.weightDao())
+        val sessionManager = SessionManager(this)
         
         val supabaseRepository = SupabaseRepository()
         val macroRepository = MacroDataRepository(supabaseRepository)
         val foodRepository = FoodRepository(supabaseRepository)
         
-        val authViewModel = AuthViewModel(repository)
-        val profileViewModel = ProfileViewModel(repository)
+        val authViewModel = AuthViewModel(repository, sessionManager)
+        val profileViewModel = ProfileViewModel(repository, sessionManager)
         val dashboardViewModel = DashboardViewModel(repository, macroRepository, foodRepository)
         val foodSearchViewModel = FoodSearchViewModel(foodRepository)
         
@@ -47,7 +49,8 @@ class MainActivity : ComponentActivity() {
                         authViewModel = authViewModel, 
                         profileViewModel = profileViewModel,
                         dashboardViewModel = dashboardViewModel,
-                        foodSearchViewModel = foodSearchViewModel
+                        foodSearchViewModel = foodSearchViewModel,
+                        sessionManager = sessionManager
                     )
                 }
             }
