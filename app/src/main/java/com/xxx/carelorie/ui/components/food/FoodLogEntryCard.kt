@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.data.remote.RemoteFoodLog
 
 @Composable
@@ -45,10 +46,10 @@ fun FoodLogEntryCard(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MacroCompactInfo(label = "P", value = "${log.protein.toInt()}g", color = Color(0xFFE91E63))
-                MacroCompactInfo(label = "C", value = "${log.carbs.toInt()}g", color = Color(0xFF2196F3))
-                MacroCompactInfo(label = "F", value = "${log.fat.toInt()}g", color = Color(0xFF4CAF50))
-                MacroCompactInfo(label = "T", value = "${log.calories}", color = Color(0xFFFF9800))
+                MacroCompactInfo(label = "P", value = "${log.protein.toInt()}g", color = MacroColors.Protein)
+                MacroCompactInfo(label = "C", value = "${log.carbs.toInt()}g", color = MacroColors.Carbs)
+                MacroCompactInfo(label = "F", value = "${log.fat.toInt()}g", color = MacroColors.Fat)
+                MacroCompactInfo(label = "T", value = "${log.calories}", color = MacroColors.Calories)
             }
         }
     }

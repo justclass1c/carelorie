@@ -6,7 +6,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -20,37 +22,55 @@ import com.xxx.carelorie.ui.screens.GoalScreen
 import com.xxx.carelorie.ui.screens.LoginScreen
 import com.xxx.carelorie.ui.screens.Profile
 import com.xxx.carelorie.ui.screens.RegisterScreen
+import com.xxx.carelorie.ui.screens.ReviewFoodsScreen
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
+import com.xxx.carelorie.ui.viewmodels.CarelorieViewModelFactories
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
+/** Route names in one place so the navigation bar and the graph can never drift apart. */
+object Routes {
+    const val LOGIN = "login"
+    const val REGISTER = "register"
+    const val DASHBOARD = "dashboard"
+    const val FOOD_LOG = "foodLog"
+    const val GOAL = "goal"
+    const val PROFILE = "profile"
+    const val FOOD_SEARCH = "foodSearch"
+    const val REVIEW_FOODS = "reviewFoods"
+
+    fun foodSearch(mealType: String) = "$FOOD_SEARCH/$mealType"
+    fun profile(isOnboarding: Boolean = false) = "$PROFILE?isOnboarding=$isOnboarding"
+}
+
 @Composable
 fun AppNavigation(
     modifier: Modifier = Modifier,
     navController: NavHostController,
+    widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
     authViewModel: AuthViewModel,
     profileViewModel: ProfileViewModel,
     dashboardViewModel: DashboardViewModel,
-    foodLogViewModel: FoodLogViewModel,
     foodSearchViewModel: FoodSearchViewModel,
     sessionManager: SessionManager
 ) {
     val savedUserId = sessionManager.getUserId()
     var currentUserId by rememberSaveable { mutableIntStateOf(savedUserId) }
+    val isWideScreen = widthSizeClass != WindowWidthSizeClass.Compact
 
     NavHost(
         navController = navController,
-        startDestination = if (savedUserId != -1) "dashboard" else "login",
+        startDestination = if (savedUserId != -1) Routes.DASHBOARD else Routes.LOGIN,
         modifier = modifier
     ) {
-        composable("login") {
+        composable(Routes.LOGIN) {
             LoginScreen(
                 onLoginSuccess = { userId ->
                     currentUserId = userId
-                    navController.navigate("dashboard") {
-                        popUpTo("login") { inclusive = true }
+                    navController.navigate(Routes.DASHBOARD) {
+                        popUpTo(Routes.LOGIN) { inclusive = true }
                     }
                 },
                 navController = navController,
@@ -58,80 +78,104 @@ fun AppNavigation(
             )
         }
 
-        composable("register") {
+        composable(Routes.REGISTER) {
             RegisterScreen(
                 navController = navController,
                 viewModel = authViewModel,
                 onRegisterSuccess = { userId ->
                     currentUserId = userId
-                    navController.navigate("profile?isOnboarding=true") {
-                        popUpTo("register") { inclusive = true }
+                    navController.navigate(Routes.profile(isOnboarding = true)) {
+                        popUpTo(Routes.REGISTER) { inclusive = true }
                     }
                 }
             )
         }
-        
-        composable("dashboard") {
-            if (currentUserId != -1) {
+
+        composable(Routes.DASHBOARD) {
+            RequireUser(currentUserId, navController) { userId ->
                 Dashboard(
-                    navController = navController, 
-                    userId = currentUserId,
+                    navController = navController,
+                    userId = userId,
                     viewModel = dashboardViewModel
                 )
-            } else {
-                // Fallback to login if somehow userId is lost
-                LaunchedEffect(Unit) {
-                    navController.navigate("login") {
-                        popUpTo(0)
-                    }
-                }
             }
         }
 
-        composable("food log") {
-            if (currentUserId != -1) {
+        composable(Routes.FOOD_LOG) {
+            RequireUser(currentUserId, navController) { userId ->
+                val foodLogViewModel: FoodLogViewModel =
+                    viewModel(factory = CarelorieViewModelFactories.FoodLog)
                 FoodLogScreen(
                     navController = navController,
-                    userId = currentUserId,
-                    viewModel = foodLogViewModel
+                    userId = userId,
+                    viewModel = foodLogViewModel,
+                    isWideScreen = isWideScreen
                 )
-            }
-        }
-        composable("goal") {
-            if (currentUserId != -1) {
-                GoalScreen(
-                    navController = navController,
-                    userId = currentUserId,
-                    viewModel = dashboardViewModel
-                )
-            } else {
-                LaunchedEffect(Unit) {
-                    navController.navigate("login") {
-                        popUpTo(0)
-                    }
-                }
             }
         }
 
-        composable("foodSearch/{mealType}") { backStackEntry ->
+        composable(Routes.GOAL) {
+            RequireUser(currentUserId, navController) { userId ->
+                GoalScreen(
+                    navController = navController,
+                    userId = userId,
+                    viewModel = dashboardViewModel
+                )
+            }
+        }
+
+        composable("${Routes.FOOD_SEARCH}/{mealType}") { backStackEntry ->
             val mealType = backStackEntry.arguments?.getString("mealType") ?: "Breakfast"
             FoodSearchScreen(
                 navController = navController,
                 userId = currentUserId,
                 mealType = mealType,
+                viewModel = foodSearchViewModel,
+                isWideScreen = isWideScreen
+            )
+        }
+
+        composable(Routes.REVIEW_FOODS) {
+            ReviewFoodsScreen(
+                navController = navController,
+                userId = currentUserId,
                 viewModel = foodSearchViewModel
             )
         }
 
         composable(
-            route = "profile?isOnboarding={isOnboarding}",
+            route = "${Routes.PROFILE}?isOnboarding={isOnboarding}",
             arguments = listOf(navArgument("isOnboarding") {
                 type = NavType.BoolType
                 defaultValue = false
             })
         ) { backStackEntry ->
             val isOnboarding = backStackEntry.arguments?.getBoolean("isOnboarding") ?: false
-            Profile(navController = navController, userId = currentUserId, viewModel = profileViewModel, isOnboarding = isOnboarding)
+            Profile(
+                navController = navController,
+                userId = currentUserId,
+                viewModel = profileViewModel,
+                isOnboarding = isOnboarding
+            )
+        }
+    }
+}
+
+/**
+ * Renders [content] only when a user is signed in, otherwise bounces back to login.
+ * Replaces the copy-pasted `if (currentUserId != -1) ... else LaunchedEffect` blocks.
+ */
+@Composable
+private fun RequireUser(
+    userId: Int,
+    navController: NavHostController,
+    content: @Composable (Int) -> Unit
+) {
+    if (userId != -1) {
+        content(userId)
+    } else {
+        LaunchedEffect(Unit) {
+            navController.navigate(Routes.LOGIN) { popUpTo(0) }
         }
     }
 }

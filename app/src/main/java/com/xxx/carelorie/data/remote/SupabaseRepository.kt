@@ -37,13 +37,31 @@ class SupabaseRepository {
         }
     }
 
-    suspend fun addFoodLog(entry: RemoteFoodLog) = withContext(Dispatchers.IO) {
+    suspend fun addFoodLog(entry: RemoteFoodLog): Boolean = withContext(Dispatchers.IO) {
         try {
             supabase.postgrest["food_logs"].insert(entry)
+            true
         } catch (e: PostgrestRestException) {
             Log.e("SupabaseRepository", "Postgrest error adding food log: ${e.description} (Code: ${e.code})", e)
+            false
         } catch (e: Exception) {
             Log.e("SupabaseRepository", "Error adding food log", e)
+            false
+        }
+    }
+
+    suspend fun deleteFoodLog(logId: Int): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["food_logs"].delete {
+                filter { eq("id", logId) }
+            }
+            true
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error deleting food log: ${e.description} (Code: ${e.code})", e)
+            false
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting food log", e)
+            false
         }
     }
 

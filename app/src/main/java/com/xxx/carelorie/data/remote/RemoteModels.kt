@@ -1,6 +1,7 @@
 package com.xxx.carelorie.data.remote
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 data class RemoteMacroIntake(
@@ -21,7 +22,12 @@ data class RemoteFoodLog(
     val protein: Float = 0f,
     val carbs: Float = 0f,
     val fat: Float = 0f,
-    val createdAt: String = ""
+    val createdAt: String = "",
+    /**
+     * Local Room key. Marked @Transient so it is never sent to Supabase — that table has no
+     * such column. It lets the UI address an entry that has not been given a server id yet.
+     */
+    @Transient val localId: String = ""
 )
 
 @Serializable

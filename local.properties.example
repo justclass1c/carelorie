@@ -1,0 +1,4 @@
+# Copy the relevant line into local.properties (git-ignored, never commit it).
+# Leave it out entirely and the app uses the built-in stub recogniser.
+# Free key: https://aistudio.google.com/apikey
+GEMINI_API_KEY=
