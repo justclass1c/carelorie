@@ -26,7 +26,9 @@ data class DashboardUiState(
     val currentStreak: Int = 0,
     val trackedDates: Set<LocalDate> = emptySet(),
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    /** One-shot text for a snackbar/toast, e.g. the result of a delete. */
+    val message: String? = null
 ) {
     val todayIntake: DailyMacroIntake?
         get() = monthlyIntake.find { it.date == LocalDate.now() } ?: weeklyIntake.find { it.date == LocalDate.now() }
@@ -36,6 +38,8 @@ sealed class DashboardEvent {
     data class LoadData(val userId: Int) : DashboardEvent()
     data class UpdateWeight(val userId: Int, val weight: Float, val date: LocalDate) : DashboardEvent()
     data class ChangeMonth(val userId: Int, val yearMonth: YearMonth) : DashboardEvent()
+    data class DeleteLog(val userId: Int, val log: RemoteFoodLog) : DashboardEvent()
+    object MessageConsumed : DashboardEvent()
 }
 
 class DashboardViewModel(
@@ -52,6 +56,8 @@ class DashboardViewModel(
             is DashboardEvent.LoadData -> loadDashboardData(event.userId)
             is DashboardEvent.UpdateWeight -> updateWeight(event.userId, event.weight, event.date)
             is DashboardEvent.ChangeMonth -> loadDashboardData(event.userId, event.yearMonth)
+            is DashboardEvent.DeleteLog -> deleteLog(event.userId, event.log)
+            is DashboardEvent.MessageConsumed -> _uiState.update { it.copy(message = null) }
         }
     }
 
@@ -151,6 +157,27 @@ class DashboardViewModel(
                     )
                 }
             }
+        }
+    }
+
+    private fun deleteLog(userId: Int, log: RemoteFoodLog) {
+        viewModelScope.launch {
+            // Row disappears immediately; the repository removes it locally first and
+            // reconciles with the server after.
+            _uiState.update { state ->
+                state.copy(todayLogs = state.todayLogs.filterNot { it.localId == log.localId })
+            }
+            val removed = foodRepository.deleteLog(log)
+            _uiState.update {
+                it.copy(
+                    message = if (removed) {
+                        "Removed ${log.foodName}"
+                    } else {
+                        "${log.foodName} will be removed once you're back online"
+                    }
+                )
+            }
+            loadDashboardData(userId)
         }
     }
 
