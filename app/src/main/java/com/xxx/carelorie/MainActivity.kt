@@ -18,6 +18,7 @@ import com.xxx.carelorie.ui.BottomNavBar
 import com.xxx.carelorie.ui.theme.CarelorieTheme
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
+import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
@@ -36,8 +37,9 @@ class MainActivity : ComponentActivity() {
         val authViewModel = AuthViewModel(repository, sessionManager)
         val profileViewModel = ProfileViewModel(repository, sessionManager)
         val dashboardViewModel = DashboardViewModel(repository, macroRepository, foodRepository)
+        val foodLogViewModel = FoodLogViewModel(foodRepository)
         val foodSearchViewModel = FoodSearchViewModel(foodRepository)
-        
+
         enableEdgeToEdge()
         setContent {
             CarelorieTheme {
@@ -49,6 +51,7 @@ class MainActivity : ComponentActivity() {
                         authViewModel = authViewModel, 
                         profileViewModel = profileViewModel,
                         dashboardViewModel = dashboardViewModel,
+                        foodLogViewModel = foodLogViewModel,
                         foodSearchViewModel = foodSearchViewModel,
                         sessionManager = sessionManager
                     )

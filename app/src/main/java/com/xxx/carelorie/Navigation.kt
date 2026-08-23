@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.ui.screens.Dashboard
+import com.xxx.carelorie.ui.screens.FoodLogScreen
 import com.xxx.carelorie.ui.screens.FoodSearchScreen
 import com.xxx.carelorie.ui.screens.GoalScreen
 import com.xxx.carelorie.ui.screens.LoginScreen
@@ -21,6 +22,7 @@ import com.xxx.carelorie.ui.screens.Profile
 import com.xxx.carelorie.ui.screens.RegisterScreen
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
+import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
@@ -31,6 +33,7 @@ fun AppNavigation(
     authViewModel: AuthViewModel,
     profileViewModel: ProfileViewModel,
     dashboardViewModel: DashboardViewModel,
+    foodLogViewModel: FoodLogViewModel,
     foodSearchViewModel: FoodSearchViewModel,
     sessionManager: SessionManager
 ) {
@@ -85,7 +88,15 @@ fun AppNavigation(
             }
         }
 
-        composable("food log") { }
+        composable("food log") {
+            if (currentUserId != -1) {
+                FoodLogScreen(
+                    navController = navController,
+                    userId = currentUserId,
+                    viewModel = foodLogViewModel
+                )
+            }
+        }
         composable("goal") {
             if (currentUserId != -1) {
                 GoalScreen(

@@ -1,0 +1,3 @@
+- [ ] Improve error handling in `SupabaseRepository.kt`
+- [ ] Verify build and logic
+- [ ] Create walkthrough

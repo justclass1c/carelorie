@@ -24,6 +24,7 @@ import com.xxx.carelorie.AppNavigation
 import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
+import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
@@ -42,6 +43,7 @@ fun BottomNavBar(
     authViewModel: AuthViewModel,
     profileViewModel: ProfileViewModel,
     dashboardViewModel: DashboardViewModel,
+    foodLogViewModel: FoodLogViewModel,
     foodSearchViewModel: FoodSearchViewModel,
     sessionManager: SessionManager
 ) {
@@ -89,6 +91,7 @@ fun BottomNavBar(
             authViewModel = authViewModel,
             profileViewModel = profileViewModel,
             dashboardViewModel = dashboardViewModel,
+            foodLogViewModel = foodLogViewModel,
             foodSearchViewModel = foodSearchViewModel,
             sessionManager = sessionManager
         )

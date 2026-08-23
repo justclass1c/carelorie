@@ -1,0 +1,3 @@
+- [x] Consolidate profile routes in `Navigation.kt` to use optional parameters
+- [x] Update `NavigationBar.kt` to improve bar visibility logic
+- [x] Verify changes by building the project
