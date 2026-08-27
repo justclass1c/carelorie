@@ -21,7 +21,8 @@ data class AuthUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isSuccess: Boolean = false,
-    val successUserId: Int? = null
+    val successUserId: Int? = null,
+    val isRememberMeChecked: Boolean = false
 )
 
 sealed class AuthUiEvent {
@@ -34,6 +35,7 @@ sealed class AuthUiEvent {
     object RegisterClicked : AuthUiEvent()
     object ErrorConsumed : AuthUiEvent()
     object ResetState : AuthUiEvent()
+    data class RememberMeChanged(val isChecked: Boolean) : AuthUiEvent()
 }
 
 class AuthViewModel(
@@ -72,6 +74,9 @@ class AuthViewModel(
             }
             is AuthUiEvent.ResetState -> {
                 _uiState.value = AuthUiState()
+            }
+            is AuthUiEvent.RememberMeChanged -> {
+                _uiState.update { it.copy(isRememberMeChecked = event.isChecked) }
             }
         }
     }
@@ -141,7 +146,9 @@ class AuthViewModel(
             _uiState.update { it.copy(isLoading = true) }
             val user = repository.getUserByEmail(email)
             if (user != null && user.password == password) {
-                sessionManager.saveUserId(user.userId)
+                if (_uiState.value.isRememberMeChecked) {
+                    sessionManager.saveUserId(user.userId)
+                }
                 _uiState.update { it.copy(isLoading = false, isSuccess = true, successUserId = user.userId) }
             } else {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Invalid email or password") }

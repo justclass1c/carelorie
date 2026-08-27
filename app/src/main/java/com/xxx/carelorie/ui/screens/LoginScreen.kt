@@ -82,7 +82,23 @@ fun LoginScreen(onLoginSuccess: (Int) -> Unit, navController: NavController, vie
             modifier = Modifier.fillMaxWidth()
         )
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(
+                checked = uiState.isRememberMeChecked,
+                onCheckedChange = { viewModel.onEvent(AuthUiEvent.RememberMeChanged(it)) }
+            )
+            Text(
+                text = "Remember me",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),

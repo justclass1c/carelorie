@@ -7,51 +7,28 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.ui.Modifier
-import com.xxx.carelorie.data.AppDatabase
-import com.xxx.carelorie.data.FoodRepository
-import com.xxx.carelorie.data.MacroDataRepository
-import com.xxx.carelorie.data.SessionManager
-import com.xxx.carelorie.data.UserRepository
-import com.xxx.carelorie.data.remote.SupabaseRepository
 import com.xxx.carelorie.ui.BottomNavBar
 import com.xxx.carelorie.ui.theme.CarelorieTheme
-import com.xxx.carelorie.ui.viewmodels.AuthViewModel
-import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
-import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
-import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
 class MainActivity : ComponentActivity() {
+
+    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        val database = AppDatabase.getDatabase(this)
-        val repository = UserRepository(database.userDao(), database.userProfileDao(), database.weightDao())
-        val sessionManager = SessionManager(this)
-        
-        val supabaseRepository = SupabaseRepository()
-        val macroRepository = MacroDataRepository(supabaseRepository)
-        val foodRepository = FoodRepository(supabaseRepository)
-        
-        val authViewModel = AuthViewModel(repository, sessionManager)
-        val profileViewModel = ProfileViewModel(repository, sessionManager)
-        val dashboardViewModel = DashboardViewModel(repository, macroRepository, foodRepository)
-        val foodSearchViewModel = FoodSearchViewModel(foodRepository)
-        
         enableEdgeToEdge()
         setContent {
             CarelorieTheme {
+                // Recalculated whenever the window changes, so rotating a tablet or entering
+                // split screen swaps the layout without restarting anything.
+                val windowSizeClass = calculateWindowSizeClass(this)
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    BottomNavBar(
-                        authViewModel = authViewModel, 
-                        profileViewModel = profileViewModel,
-                        dashboardViewModel = dashboardViewModel,
-                        foodSearchViewModel = foodSearchViewModel,
-                        sessionManager = sessionManager
-                    )
+                    BottomNavBar(widthSizeClass = windowSizeClass.widthSizeClass)
                 }
             }
         }

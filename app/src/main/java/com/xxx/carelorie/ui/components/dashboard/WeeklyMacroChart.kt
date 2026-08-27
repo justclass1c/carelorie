@@ -20,9 +20,9 @@ import com.xxx.carelorie.data.DailyMacroIntake
 import java.time.LocalDate
 
 @Composable
-fun WeeklyMacroChart(data: List<DailyMacroIntake>) {
+fun WeeklyMacroChart(data: List<DailyMacroIntake>, modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(16.dp)
     ) {

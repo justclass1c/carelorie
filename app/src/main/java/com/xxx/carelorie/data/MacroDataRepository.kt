@@ -17,41 +17,25 @@ data class DailyMacroIntake(
 class MacroDataRepository(private val remoteRepository: SupabaseRepository) {
     
     /**
-     * Retrieves the macro intake data for the past 7 days.
-     * Tries to fetch from Supabase if possible.
+     * Macro intake for the past 7 days.
+     *
+     * Returns an empty list when there is nothing to show. It deliberately does NOT invent
+     * placeholder values — a chart full of random numbers is indistinguishable from a bug.
      */
     suspend fun fetchWeeklyMacroIntake(userId: Int): List<DailyMacroIntake> {
         return try {
-            val remoteData = remoteRepository.fetchWeeklyMacros(userId)
-            if (remoteData.isEmpty()) {
-                generateDummyData()
-            } else {
-                remoteData.map { 
-                    DailyMacroIntake(
-                        date = LocalDate.parse(it.date),
-                        protein = it.protein,
-                        carbs = it.carbs,
-                        fat = it.fat
-                    )
-                }
+            remoteRepository.fetchWeeklyMacros(userId).map {
+                DailyMacroIntake(
+                    date = LocalDate.parse(it.date),
+                    protein = it.protein,
+                    carbs = it.carbs,
+                    fat = it.fat
+                )
             }
         } catch (e: Exception) {
-            // Fallback to dummy data on error (e.g., no internet)
-            generateDummyData()
+            e.printStackTrace()
+            emptyList()
         }
-    }
-
-    private fun generateDummyData(): List<DailyMacroIntake> {
-        val today = LocalDate.now()
-        return (0..6).map { i ->
-            val date = today.minusDays(i.toLong())
-            DailyMacroIntake(
-                date = date,
-                protein = (20..80).random().toFloat(),
-                carbs = (50..150).random().toFloat(),
-                fat = (10..60).random().toFloat()
-            )
-        }.reversed()
     }
 
     suspend fun syncDailyMacros(userId: Int, intake: DailyMacroIntake) {

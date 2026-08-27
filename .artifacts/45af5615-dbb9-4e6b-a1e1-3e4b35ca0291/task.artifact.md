@@ -1,0 +1,5 @@
+- `[x]` Update dependencies and permissions
+- `[x]` Initialize Supabase Client
+- `[x]` Define Remote Data Models
+- `[x]` Implement Supabase Repository
+- `[x]` Integrate remote storage with Dashboard

@@ -1,0 +1,8 @@
+- `[x]` Add Ktor dependency to `libs.versions.toml`
+- `[x]` Add Ktor engine to `app/build.gradle.kts`
+- `[x]` Sync Gradle and build project
+- `[x]` Verify fix on device (Startup crash resolved)
+- `[x]` Update `DashboardUiState` to include `todayLogs` in `DashboardViewModel.kt`
+- `[x]` Implement `onResume` refresh in `Dashboard.kt`
+- `[x]` Update `MealSection.kt` to display logged food items
+- `[x]` Build and verify logic refresh

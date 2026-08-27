@@ -37,13 +37,31 @@ class SupabaseRepository {
         }
     }
 
-    suspend fun addFoodLog(entry: RemoteFoodLog) = withContext(Dispatchers.IO) {
+    suspend fun addFoodLog(entry: RemoteFoodLog): Boolean = withContext(Dispatchers.IO) {
         try {
             supabase.postgrest["food_logs"].insert(entry)
+            true
         } catch (e: PostgrestRestException) {
             Log.e("SupabaseRepository", "Postgrest error adding food log: ${e.description} (Code: ${e.code})", e)
+            false
         } catch (e: Exception) {
             Log.e("SupabaseRepository", "Error adding food log", e)
+            false
+        }
+    }
+
+    suspend fun deleteFoodLog(logId: Int): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["food_logs"].delete {
+                filter { eq("id", logId) }
+            }
+            true
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error deleting food log: ${e.description} (Code: ${e.code})", e)
+            false
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting food log", e)
+            false
         }
     }
 
@@ -128,6 +146,70 @@ class SupabaseRepository {
             Log.e("SupabaseRepository", "Postgrest error seeding food presets: ${e.description} (Code: ${e.code})", e)
         } catch (e: Exception) {
             Log.e("SupabaseRepository", "Error seeding food presets", e)
+        }
+    }
+
+    // --- User & Profile Sync ---
+
+    suspend fun insertUser(user: RemoteUser): RemoteUser? = withContext(Dispatchers.IO) {
+        try {
+            val response = supabase.postgrest["users"]
+                .insert(user) {
+                    select()
+                }
+            response.decodeSingle<RemoteUser>()
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error inserting user: ${e.description} (Code: ${e.code})", e)
+            null
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error inserting user", e)
+            null
+        }
+    }
+
+    suspend fun fetchUserByEmail(email: String): RemoteUser? = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["users"]
+                .select {
+                    filter {
+                        eq("email", email)
+                    }
+                }
+                .decodeSingleOrNull<RemoteUser>()
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error fetching user by email: ${e.description} (Code: ${e.code})", e)
+            null
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error fetching user by email", e)
+            null
+        }
+    }
+
+    suspend fun upsertProfile(profile: RemoteUserProfile) = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["profiles"].upsert(profile)
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error upserting profile: ${e.description} (Code: ${e.code})", e)
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error upserting profile", e)
+        }
+    }
+
+    suspend fun fetchProfile(userId: Int): RemoteUserProfile? = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["profiles"]
+                .select {
+                    filter {
+                        eq("userId", userId)
+                    }
+                }
+                .decodeSingleOrNull<RemoteUserProfile>()
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error fetching profile: ${e.description} (Code: ${e.code})", e)
+            null
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error fetching profile", e)
+            null
         }
     }
 }
