@@ -12,12 +12,12 @@ import androidx.compose.ui.unit.dp
 import com.xxx.carelorie.data.DailyMacroIntake
 
 @Composable
-fun ProgressPreview(weeklyData: List<DailyMacroIntake>) {
+fun ProgressPreview(weeklyData: List<DailyMacroIntake>, modifier: Modifier = Modifier) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
         WeeklyMacroChart(data = weeklyData)

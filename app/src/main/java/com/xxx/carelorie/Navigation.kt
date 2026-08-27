@@ -96,7 +96,8 @@ fun AppNavigation(
                 Dashboard(
                     navController = navController,
                     userId = userId,
-                    viewModel = dashboardViewModel
+                    viewModel = dashboardViewModel,
+                    widthSizeClass = widthSizeClass
                 )
             }
         }
