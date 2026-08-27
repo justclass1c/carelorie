@@ -41,3 +41,20 @@ data class RemoteFoodPreset(
     val fat: Float = 0f,
     val imageUrl: String? = null
 )
+
+@Serializable
+data class RemoteUser(
+    val userId: Int? = null,
+    val email: String,
+    val password: String
+)
+
+@Serializable
+data class RemoteUserProfile(
+    val userId: Int,
+    val name: String = "",
+    val birthday: String? = null,
+    val gender: String = "",
+    val height: String = "",
+    val liftingExperience: String = ""
+)
