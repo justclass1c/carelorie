@@ -30,7 +30,6 @@ fun WeightGraph(
     yearMonth: YearMonth,
     weightHistory: List<WeightRecord>
 ) {
-    val daysInMonth = yearMonth.lengthOfMonth()
     val monthPrefix = yearMonth.toString() // YYYY-MM
     val textMeasurer = rememberTextMeasurer()
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -114,10 +113,21 @@ fun WeightGraph(
                 val graphWidth = width - paddingLeft - arrowSize - 20f
                 val graphHeight = height - paddingBottom - paddingTop - 40f
                 
+                val firstDay = LocalDate.parse(monthlyWeights.first().date).dayOfMonth
+                val lastDay = LocalDate.parse(monthlyWeights.last().date).dayOfMonth
+                val dayRange = (lastDay - firstDay).toFloat()
+                
+                // Add margin between dots and the Y-axis/arrow
+                val dataMargin = 16.dp.toPx()
+                
                 val points = monthlyWeights.map { record ->
                     val dateObj = LocalDate.parse(record.date)
                     val day = dateObj.dayOfMonth
-                    val x = paddingLeft + ((day - 1) / (daysInMonth - 1).toFloat()) * graphWidth
+                    val x = if (dayRange > 0) {
+                        paddingLeft + dataMargin + ((day - firstDay) / dayRange) * (graphWidth - dataMargin * 2)
+                    } else {
+                        paddingLeft + dataMargin
+                    }
                     val y = (height - paddingBottom) - ((record.weight - minWeight) / weightRange) * graphHeight
                     Triple(Offset(x, y), day, record.weight)
                 }

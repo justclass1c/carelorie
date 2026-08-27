@@ -1,0 +1,4 @@
+- [x] Research weight graph implementation and coordinate calculation
+- [x] Modify `WeightGraph.kt` to start plot from left with a margin
+- [x] Verify the change (added buffer between dots and axis)
+- [x] Update walkthrough
