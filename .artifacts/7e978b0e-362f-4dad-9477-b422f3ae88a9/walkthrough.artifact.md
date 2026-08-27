@@ -1,32 +1,18 @@
-# Goal Screen Landscape UI Walkthrough
+# Tablet Streak Bar Optimization Walkthrough
 
-I have implemented a dedicated landscape layout for the Goal screen to better utilize the available screen space.
+I have optimized the `StreakBar` component to handle tablet views better by displaying all boxes in a single centered line.
 
 ## Changes Made
 
-### 1. Component Enhancements
-- **[CarelorieCalendar.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/CarelorieCalendar.kt)**: Now accepts a `Modifier` to allow custom sizing and positioning.
-- **[WeightGraph.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/WeightGraph.kt)**:
-    - Added `Modifier` support.
-    - Removed hardcoded dimensions (`fillMaxWidth(0.8f)` and `aspectRatio(1f)`), moving layout control to the caller.
-
-### 2. Orientation-Aware Goal Screen
-Updated **[Goal.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/screens/Goal.kt)** with dynamic layout switching:
-- **Portrait Mode**: Keeps the original vertical stack (Calendar -> Streak -> Graph -> Button).
-- **Landscape Mode**:
-    - **Top**: `StreakBar` (full width).
-    - **Left**: `CarelorieCalendar` (occupies the left half).
-    - **Right**: A column containing the `WeightGraph` and the "Update Weight" button.
-
-### 3. Graph UI Tweak
-- Adjusted the "Days" label in the `WeightGraph` to be positioned **under** the X-axis as requested.
+### 1. Adaptive Streak Bar Layout
+Updated **[StreakBar.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/StreakBar.kt)** with screen-width detection:
+- **Tablet View (Width >= 600dp)**: All 30 boxes are now displayed in a single, perfectly centered line.
+- **Phone View**: Maintains the two-row layout (15 boxes each) but adds explicit centering for both rows and the streak text.
+- **Universal Centering**: Improved the alignment logic so the streak bar looks balanced on all device types, including small phones and large tablets.
 
 ## Verification Results
 
-### Automated Tests
-- Build successful: `app:assembleDebug`.
-
 ### Manual Verification
-- **Portrait**: Verified the layout remains consistent with the original design.
-- **Landscape**: Verified that rotating the screen correctly repositioned the Streak Bar to the top, the Calendar to the left, and the Graph/Button to the right.
-- **Scrollable**: Confirmed the entire screen remains scrollable in both orientations to handle different screen sizes.
+- **Portrait Phone**: Verified the layout shows two centered rows of 15 boxes.
+- **Tablet/Wide View**: Verified the layout switches to a single centered row of 30 boxes, making better use of the available horizontal space.
+- **Centering**: Confirmed that the "Current Streak" text and the boxes themselves are horizontally centered within the card container.

@@ -1,43 +1,24 @@
-# Goal Screen Landscape UI Implementation Plan
+# Tablet Streak Bar Optimization Implementation Plan
 
-Add a dedicated landscape layout for the Goal screen to improve usability on wide screens.
+Optimize the `StreakBar` component for tablet views by displaying all boxes in a single centered line.
 
 ## Proposed Changes
 
 ### UI Components
 
-#### [MODIFY] [WeightGraph.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/WeightGraph.kt)
-- Add a `modifier: Modifier = Modifier` parameter to the `WeightGraph` function.
-- Replace the hardcoded `fillMaxWidth(0.8f)` and `aspectRatio(1f)` with the passed `modifier`.
-- Move the default styling (`aspectRatio(1f)`, etc.) to the call sites in `Goal.kt` to allow different layouts in portrait vs. landscape.
-
-#### [MODIFY] [CarelorieCalendar.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/CarelorieCalendar.kt)
-- Add a `modifier: Modifier = Modifier` parameter to the `CarelorieCalendar` function.
-- Apply this `modifier` to the root `Column`.
-
-### Screens
-
-#### [MODIFY] [Goal.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/screens/Goal.kt)
-- Use `LocalConfiguration.current.orientation` to detect the device orientation.
-- Implement two layout branches:
-    - **Portrait**: Current vertical stack (Calendar -> Streak -> Graph -> Button).
-    - **Landscape**:
-        - `StreakBar` at the top (full width).
-        - A `Row` below the streak containing:
-            - `CarelorieCalendar` (weighted to take left half).
-            - A `Column` (weighted to take right half) containing the `WeightGraph` and "Update Weight" button.
-- Ensure the layout is scrollable in both orientations if content exceeds screen height.
+#### [MODIFY] [StreakBar.kt](file:///C:/Users/user/Desktop/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/StreakBar.kt)
+- Use `LocalConfiguration.current.screenWidthDp` to detect if the device is in a wide (tablet) view (>= 600dp).
+- If in tablet view:
+    - Display all 30 boxes in a single row.
+    - Center the row horizontally using `Arrangement.Center`.
+- If in regular view (phone):
+    - Keep the two-row layout (15 boxes each).
+    - Update `StreakRow` to use `Arrangement.Center` for better alignment on all devices.
+- Ensure the "Current Streak" text remains centered above the boxes.
 
 ## Verification Plan
 
-### Automated Tests
-- Build successful: `app:assembleDebug`.
-
 ### Manual Verification
-- Deploy to a device/emulator.
-- Verify portrait layout remains unchanged.
-- Rotate the device to landscape and verify:
-    - `StreakBar` is at the top.
-    - `Calendar` is on the left.
-    - `WeightGraph` is on the right.
-    - "Update Weight" button is appropriately placed (e.g., below the graph or at the bottom of the right column).
+- **Phone View**: Verify the streak bar still shows two rows of boxes, centered.
+- **Tablet View**: Verify the streak bar shows all 30 boxes in a single centered line.
+- **Landscape Phone**: Depending on the phone width, verify it switches to a single line if the width exceeds 600dp.
