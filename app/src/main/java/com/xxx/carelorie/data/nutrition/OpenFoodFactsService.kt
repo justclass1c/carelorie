@@ -58,15 +58,25 @@ class OpenFoodFactsService {
         withContext(Dispatchers.IO) {
             if (query.isBlank()) return@withContext emptyList()
             val encoded = URLEncoder.encode(query, "UTF-8")
+            // Using the legacy search endpoint with json=1 is the most reliable way for 
+            // keyword search across all fields.
             val url = "$BASE/cgi/search.pl?search_terms=$encoded&search_simple=1" +
                 "&action=process&json=1&page_size=$limit&fields=$FIELDS"
+            
+            Log.d(TAG, "Searching online for: $query (URL: $url)")
+            
             val body = get(url) ?: return@withContext emptyList()
             try {
-                val products = json.parseToJsonElement(body).jsonObject["products"]?.jsonArray
-                    ?: return@withContext emptyList()
+                val root = json.parseToJsonElement(body).jsonObject
+                val products = root["products"]?.jsonArray ?: return@withContext emptyList()
+                
+                Log.d(TAG, "Found ${products.size} raw products for \"$query\"")
+                
                 products.mapNotNull { element ->
                     runCatching {
                         parseProduct(element.jsonObject, NutritionSource.OPEN_FOOD_FACTS)
+                    }.onFailure { 
+                        Log.w(TAG, "Failed to parse product element: ${it.message}")
                     }.getOrNull()
                 }
             } catch (e: Exception) {
@@ -112,9 +122,13 @@ class OpenFoodFactsService {
         }
 
         // Prefer per-serving values; fall back to per-100g, which is what most entries carry.
-        val calories = num("energy-kcal_serving", "energy-kcal_100g")
-            ?: num("energy_serving", "energy_100g")?.let { it / 4.184f } // kJ to kcal
-            ?: return null
+        // Also check generic keys as fallbacks for legacy or incomplete data.
+        val calories = num("energy-kcal_serving", "energy-kcal_100g", "energy-kcal")
+            ?: num("energy_serving", "energy_100g", "energy")?.let { it / 4.184f } // kJ to kcal
+            ?: run {
+                Log.w(TAG, "Skipping $name: No calories found in nutriments.")
+                return null
+            }
 
         val brand = product["brands"]?.jsonPrimitive?.content
             ?.split(",")?.firstOrNull()?.trim()?.takeIf { it.isNotBlank() }
@@ -124,27 +138,27 @@ class OpenFoodFactsService {
         val preset = RemoteFoodPreset(
             name = if (brand != null) "$name ($brand)" else name,
             calories = calories.toInt(),
-            protein = num("proteins_serving", "proteins_100g") ?: 0f,
-            carbs = num("carbohydrates_serving", "carbohydrates_100g") ?: 0f,
-            fat = num("fat_serving", "fat_100g") ?: 0f,
+            protein = num("proteins_serving", "proteins_100g", "proteins") ?: 0f,
+            carbs = num("carbohydrates_serving", "carbohydrates_100g", "carbohydrates") ?: 0f,
+            fat = num("fat_serving", "fat_100g", "fat") ?: 0f,
             imageUrl = product["image_front_small_url"]?.jsonPrimitive?.content
         )
 
         // Open Food Facts reports sodium and salt in grams; the panel shows milligrams.
-        val sodiumMg = num("sodium_serving", "sodium_100g")?.times(1000f)
-            ?: num("salt_serving", "salt_100g")?.times(400f) // salt to sodium, then g to mg
+        val sodiumMg = num("sodium_serving", "sodium_100g", "sodium")?.times(1000f)
+            ?: num("salt_serving", "salt_100g", "salt")?.times(400f) // salt to sodium, then g to mg
 
         return FoodCandidate(
             preset = preset,
             detail = NutritionDetail(
                 servingDescription = serving,
-                fiberGrams = num("fiber_serving", "fiber_100g"),
-                sugarGrams = num("sugars_serving", "sugars_100g"),
-                saturatedFatGrams = num("saturated-fat_serving", "saturated-fat_100g"),
+                fiberGrams = num("fiber_serving", "fiber_100g", "fiber"),
+                sugarGrams = num("sugars_serving", "sugars_100g", "sugars"),
+                saturatedFatGrams = num("saturated-fat_serving", "saturated-fat_100g", "saturated-fat"),
                 sodiumMilligrams = sodiumMg,
-                cholesterolMilligrams = num("cholesterol_serving", "cholesterol_100g")
+                cholesterolMilligrams = num("cholesterol_serving", "cholesterol_100g", "cholesterol")
                     ?.times(1000f),
-                potassiumMilligrams = num("potassium_serving", "potassium_100g")?.times(1000f),
+                potassiumMilligrams = num("potassium_serving", "potassium_100g", "potassium")?.times(1000f),
                 brand = brand,
                 source = source
             )

@@ -141,9 +141,9 @@ class FoodRepository(
             return
         }
         for (entry in pending) {
-            val ok = supabaseRepository.addFoodLog(entry.toRemote().copy(id = null))
-            if (ok) {
-                foodLogDao.markSynced(entry.localId, null)
+            val remote = supabaseRepository.addFoodLog(entry.toRemote().copy(id = null))
+            if (remote != null) {
+                foodLogDao.markSynced(entry.localId, remote.id)
             }
         }
     }

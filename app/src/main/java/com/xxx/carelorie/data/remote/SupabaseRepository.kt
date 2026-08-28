@@ -37,16 +37,19 @@ class SupabaseRepository {
         }
     }
 
-    suspend fun addFoodLog(entry: RemoteFoodLog): Boolean = withContext(Dispatchers.IO) {
+    suspend fun addFoodLog(entry: RemoteFoodLog): RemoteFoodLog? = withContext(Dispatchers.IO) {
         try {
-            supabase.postgrest["food_logs"].insert(entry)
-            true
+            val response = supabase.postgrest["food_logs"]
+                .insert(entry) {
+                    select()
+                }
+            response.decodeSingle<RemoteFoodLog>()
         } catch (e: PostgrestRestException) {
             Log.e("SupabaseRepository", "Postgrest error adding food log: ${e.description} (Code: ${e.code})", e)
-            false
+            null
         } catch (e: Exception) {
             Log.e("SupabaseRepository", "Error adding food log", e)
-            false
+            null
         }
     }
 

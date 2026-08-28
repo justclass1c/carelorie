@@ -47,7 +47,8 @@ enum class NutritionSource(val label: String, val isEstimate: Boolean) {
 data class FoodCandidate(
     val preset: RemoteFoodPreset,
     val detail: NutritionDetail? = null,
-    val quantity: Float = 1f
+    val quantity: Float = 1f,
+    val selectionId: String = java.util.UUID.randomUUID().toString()
 ) {
     val calories: Int get() = (preset.calories * quantity).toInt()
     val protein: Float get() = preset.protein * quantity

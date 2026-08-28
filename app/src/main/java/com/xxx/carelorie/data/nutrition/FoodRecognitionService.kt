@@ -170,8 +170,13 @@ the local recipe. Return [] if there is no food in the image."""
         // Models often wrap JSON in ```json fences despite instructions.
         val cleaned = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         return try {
-            json.parseToJsonElement(cleaned).jsonArray.mapNotNull { element ->
-                runCatching { parseOne(element.jsonObject) }.getOrNull()
+            val element = json.parseToJsonElement(cleaned)
+            if (element !is kotlinx.serialization.json.JsonArray) {
+                Log.w(TAG, "Expected JSON array but got: $cleaned")
+                return emptyList()
+            }
+            element.mapNotNull { item ->
+                runCatching { parseOne(item.jsonObject) }.getOrNull()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Could not parse model output: $cleaned", e)

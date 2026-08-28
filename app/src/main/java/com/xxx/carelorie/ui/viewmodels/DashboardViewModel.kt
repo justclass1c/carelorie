@@ -78,19 +78,21 @@ class DashboardViewModel(
 
                 Log.d("DashboardViewModel", "Fetching logs from $fetchStartDate...")
                 val allLogs = try {
-                    // Re-using a range query to cover both Dashboard and Goal needs
                     foodRepository.getMonthlyLogs(userId, YearMonth.from(fetchStartDate)) 
                 } catch (e: Exception) {
                     Log.e("DashboardViewModel", "Error fetching logs", e)
                     emptyList()
                 }
                 
-                val todayLogs = allLogs.filter { it.createdAt.startsWith(today.toString()) }
+                // Group logs by date once to avoid repeated filtering
+                val logsByDate = allLogs.groupBy { it.createdAt.take(10) }
+                
+                val todayLogs = logsByDate[today.toString()] ?: emptyList()
                 
                 // Weekly Data (last 7 days)
                 val weeklyData = (0..6).map { i ->
                     val date = today.minusDays(i.toLong())
-                    val logsForDay = allLogs.filter { it.createdAt.startsWith(date.toString()) }
+                    val logsForDay = logsByDate[date.toString()] ?: emptyList()
                     
                     DailyMacroIntake(
                         date = date,
@@ -104,7 +106,7 @@ class DashboardViewModel(
                 val daysInMonth = yearMonth.lengthOfMonth()
                 val monthlyData = (1..daysInMonth).map { day ->
                     val date = yearMonth.atDay(day)
-                    val logsForDay = allLogs.filter { it.createdAt.startsWith(date.toString()) }
+                    val logsForDay = logsByDate[date.toString()] ?: emptyList()
                     
                     DailyMacroIntake(
                         date = date,

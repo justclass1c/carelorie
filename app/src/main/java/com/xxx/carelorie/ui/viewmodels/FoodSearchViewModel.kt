@@ -26,7 +26,7 @@ data class FoodSearchUiState(
     val mealType: String = "Breakfast",
     val presets: List<FoodCandidate> = emptyList(),
     val results: List<FoodCandidate> = emptyList(),
-    /** Keyed by food name, since online results have no stable id until logged. */
+    /** Keyed by selectionId for uniqueness. */
     val selected: Map<String, FoodCandidate> = emptyMap(),
     val mode: SearchMode = SearchMode.PRESETS,
     val isLoading: Boolean = false,
@@ -44,7 +44,7 @@ data class FoodSearchUiState(
     val totalCarbs: Float get() = selectedList.sumOf { it.carbs.toDouble() }.toFloat()
     val totalFat: Float get() = selectedList.sumOf { it.fat.toDouble() }.toFloat()
 
-    fun isSelected(candidate: FoodCandidate) = selected.containsKey(candidate.preset.name)
+    fun isSelected(candidate: FoodCandidate) = selected.containsKey(candidate.selectionId)
 }
 
 sealed class FoodSearchEvent {
@@ -147,7 +147,7 @@ class FoodSearchViewModel(
                     results = results,
                     isLoading = false,
                     message = if (results.isEmpty()) {
-                        "Nothing found online for \"$query\"."
+                        "No results found online for \"$query\". Check your spelling or try another term."
                     } else null
                 )
             }
@@ -176,7 +176,7 @@ class FoodSearchViewModel(
                 _uiState.update {
                     it.copy(
                         results = listOf(candidate),
-                        selected = it.selected + (candidate.preset.name to candidate),
+                        selected = it.selected + (candidate.selectionId to candidate),
                         isLoading = false,
                         message = "Found ${candidate.preset.name}"
                     )
@@ -193,7 +193,7 @@ class FoodSearchViewModel(
                     state.copy(
                         results = result.candidates,
                         // Pre-select everything the model saw; the user unticks what's wrong.
-                        selected = state.selected + result.candidates.associateBy { it.preset.name },
+                        selected = state.selected + result.candidates.associateBy { it.selectionId },
                         isAnalysing = false,
                         message = "Found ${result.candidates.size} item(s). Check the amounts before logging."
                     )
@@ -220,7 +220,7 @@ class FoodSearchViewModel(
 
     private fun toggleSelection(candidate: FoodCandidate) {
         _uiState.update { state ->
-            val key = candidate.preset.name
+            val key = candidate.selectionId
             val updated = if (state.selected.containsKey(key)) {
                 state.selected - key
             } else {
@@ -233,9 +233,16 @@ class FoodSearchViewModel(
     private fun changeQuantity(candidate: FoodCandidate, quantity: Float) {
         val safe = quantity.coerceIn(0.25f, 20f)
         _uiState.update { state ->
-            val key = candidate.preset.name
+            val key = candidate.selectionId
             if (!state.selected.containsKey(key)) return@update state
-            state.copy(selected = state.selected + (key to candidate.copy(quantity = safe)))
+            val updatedSelection = state.selected + (key to candidate.copy(quantity = safe))
+            
+            // Also update the quantity in the results list so the UI reflects the change
+            val updatedResults = state.results.map {
+                if (it.selectionId == key) it.copy(quantity = safe) else it
+            }
+            
+            state.copy(selected = updatedSelection, results = updatedResults)
         }
     }
 
