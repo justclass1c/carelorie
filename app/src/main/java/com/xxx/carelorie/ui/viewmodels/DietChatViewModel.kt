@@ -56,20 +56,57 @@ class DietChatViewModel(
         val text = _uiState.value.inputText.trim()
         if (text.isEmpty() || _uiState.value.isLoading) return
 
+        val newMessages = _uiState.value.messages + ChatMessage(text, true)
         _uiState.update { 
             it.copy(
-                messages = it.messages + ChatMessage(text, true),
+                messages = newMessages,
                 inputText = "",
                 isLoading = true,
                 error = null
             )
         }
 
+        generateAiResponse(newMessages)
+    }
+
+    fun deleteMessage(index: Int) {
+        if (index < 0 || index >= _uiState.value.messages.size) return
+        
+        // Truncate the list from the selected index onwards
+        val truncatedMessages = _uiState.value.messages.subList(0, index)
+        _uiState.update { it.copy(messages = truncatedMessages) }
+    }
+
+    fun editMessage(index: Int, newText: String) {
+        if (index < 0 || index >= _uiState.value.messages.size) return
+        val message = _uiState.value.messages[index]
+        if (!message.isUser) return
+
+        // 1. Update the message at index and truncate subsequent ones
+        val updatedMessages = _uiState.value.messages.subList(0, index).toMutableList()
+        updatedMessages.add(ChatMessage(newText, true))
+        
+        _uiState.update { 
+            it.copy(
+                messages = updatedMessages,
+                isLoading = true,
+                error = null
+            )
+        }
+
+        // 2. Regenerate response for the edited message
+        generateAiResponse(updatedMessages)
+    }
+
+    private fun generateAiResponse(history: List<ChatMessage>) {
         viewModelScope.launch {
             try {
                 // Fetch profile for personalization
                 val profile = userRepository.getProfile(userId)
-                val response = callDeepSeek(text, profile)
+                
+                // Use the last user message as the prompt, but we could send full history
+                val lastUserMessage = history.lastOrNull { it.isUser }?.text ?: ""
+                val response = callDeepSeek(lastUserMessage, profile)
                 
                 _uiState.update { 
                     it.copy(
@@ -119,7 +156,7 @@ class DietChatViewModel(
                 }
             }
             put("temperature", 0.7)
-            put("max_tokens", 512)
+            put("max_tokens", 4096)
         }.toString()
 
         var connection: HttpURLConnection? = null

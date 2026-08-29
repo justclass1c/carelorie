@@ -56,6 +56,7 @@ private fun hidesNavigation(route: String?): Boolean {
     return route == Routes.LOGIN ||
         route == Routes.REGISTER ||
         route == Routes.REVIEW_FOODS ||
+        route == Routes.DIET_CHAT ||
         route.startsWith(Routes.FOOD_SEARCH)
 }
 

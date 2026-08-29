@@ -40,35 +40,42 @@ class UserRepository(
     }
 
     suspend fun getUserByEmail(email: String): User? {
-        // 1. Try local
-        val local = userDao.getUserByEmail(email)
-        if (local != null) return local
-        
-        // 2. Try remote (Sync from other device)
-        val remote = supabaseRepository.fetchUserByEmail(email)
+        // 1. Try remote first to get latest credentials and sync profile
+        val remote = try {
+            supabaseRepository.fetchUserByEmail(email)
+        } catch (e: Exception) {
+            null
+        }
+
         if (remote != null && remote.userId != null) {
             val user = User(userId = remote.userId, email = remote.email, password = remote.password)
             userDao.insertUser(user)
-            
-            // Also sync profile if it exists
-            val remoteProfile = supabaseRepository.fetchProfile(remote.userId)
-            if (remoteProfile != null) {
-                val profile = UserProfile(
-                    userId = remoteProfile.userId,
-                    name = remoteProfile.name,
-                    birthday = fromDbDate(remoteProfile.birthday),
-                    gender = remoteProfile.gender,
-                    height = remoteProfile.height,
-                    liftingExperience = remoteProfile.liftingExperience,
-                    weight = remoteProfile.weight
-                )
-                userProfileDao.insertOrUpdateProfile(profile)
-            }
-            
+            syncProfileWithRemote(remote.userId)
             return user
         }
         
-        return null
+        // 2. Fallback to local
+        return userDao.getUserByEmail(email)
+    }
+
+    suspend fun syncProfileWithRemote(userId: String) {
+        try {
+            val remote = supabaseRepository.fetchProfile(userId)
+            if (remote != null) {
+                val profile = UserProfile(
+                    userId = remote.userId,
+                    name = remote.name,
+                    birthday = fromDbDate(remote.birthday),
+                    gender = remote.gender,
+                    height = remote.height,
+                    liftingExperience = remote.liftingExperience,
+                    weight = remote.weight
+                )
+                userProfileDao.insertOrUpdateProfile(profile)
+            }
+        } catch (e: Exception) {
+            // Silently fail if offline, we'll use local cache
+        }
     }
 
     suspend fun saveProfile(profile: UserProfile) {
@@ -89,27 +96,9 @@ class UserRepository(
     }
 
     suspend fun getProfile(userId: String): UserProfile? {
-        // 1. Try local
-        val local = userProfileDao.getProfileByUserId(userId)
-        if (local != null) return local
-        
-        // 2. Try remote
-        val remote = supabaseRepository.fetchProfile(userId)
-        if (remote != null) {
-            val profile = UserProfile(
-                userId = remote.userId,
-                name = remote.name,
-                birthday = fromDbDate(remote.birthday),
-                gender = remote.gender,
-                height = remote.height,
-                liftingExperience = remote.liftingExperience,
-                weight = remote.weight
-            )
-            userProfileDao.insertOrUpdateProfile(profile)
-            return profile
-        }
-        
-        return null
+        // Sync with remote first if possible to ensure we have latest data
+        syncProfileWithRemote(userId)
+        return userProfileDao.getProfileByUserId(userId)
     }
 
     /** Converts dd/mm/yyyy to YYYY-MM-DD for Supabase 'date' type */
@@ -153,8 +142,9 @@ class UserRepository(
             com.xxx.carelorie.data.remote.RemoteWeightRecord(userId, weight, date)
         )
         
-        // Update profile weight for consistency in UI
-        val profile = userProfileDao.getProfileByUserId(userId)
+        // Update profile weight for consistency in UI. 
+        // We fetch the latest profile (syncing from remote if needed) to avoid overwriting fields.
+        val profile = getProfile(userId)
         if (profile != null) {
             val updatedProfile = profile.copy(weight = weight.toString())
             saveProfile(updatedProfile)

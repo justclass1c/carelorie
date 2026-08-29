@@ -155,6 +155,7 @@ fun FoodSearchScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
+            Spacer(Modifier.height(16.dp))
             OutlinedTextField(
                 value = uiState.query,
                 onValueChange = { viewModel.onEvent(FoodSearchEvent.SearchQueryChanged(it)) },
