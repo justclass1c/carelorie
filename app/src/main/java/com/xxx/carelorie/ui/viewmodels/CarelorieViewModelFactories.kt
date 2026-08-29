@@ -55,4 +55,11 @@ object CarelorieViewModelFactories {
     val FoodLog = viewModelFactory {
         initializer { FoodLogViewModel(container().foodRepository) }
     }
+
+    fun DietChat(userId: Int) = viewModelFactory {
+        initializer {
+            val c = container()
+            DietChatViewModel(c.userRepository, userId)
+        }
+    }
 }

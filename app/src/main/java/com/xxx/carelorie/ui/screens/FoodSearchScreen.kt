@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -225,7 +226,7 @@ fun FoodSearchScreen(
                     contentPadding = PaddingValues(bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(uiState.results, key = { it.preset.name }) { candidate ->
+                    items(uiState.results, key = { it.selectionId }) { candidate ->
                         SelectableFoodRow(
                             candidate = candidate,
                             isSelected = uiState.isSelected(candidate),

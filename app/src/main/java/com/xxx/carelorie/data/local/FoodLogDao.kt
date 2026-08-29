@@ -57,6 +57,9 @@ interface FoodLogDao {
     @Query("SELECT * FROM food_log_entries WHERE isPendingDelete = 1")
     suspend fun getPendingDeletes(): List<FoodLogEntity>
 
+    @Query("SELECT remoteId FROM food_log_entries WHERE isPendingDelete = 1 AND remoteId IS NOT NULL")
+    suspend fun getPendingDeleteRemoteIds(): List<Int>
+
     @Query("UPDATE food_log_entries SET remoteId = :remoteId, isSynced = 1 WHERE localId = :localId")
     suspend fun markSynced(localId: String, remoteId: Int?)
 

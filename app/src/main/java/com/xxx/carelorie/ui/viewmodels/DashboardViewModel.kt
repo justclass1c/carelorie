@@ -140,7 +140,7 @@ class DashboardViewModel(
 
                 _uiState.update { 
                     it.copy(
-                        username = profile?.name ?: "User $userId",
+                        username = profile?.name ?: UserRepository.formatUserId(userId),
                         weeklyIntake = weeklyData,
                         monthlyIntake = monthlyData,
                         todayLogs = todayLogs,

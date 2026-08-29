@@ -8,17 +8,25 @@ class SessionManager(context: Context) {
 
     companion object {
         private const val KEY_USER_ID = "user_id"
+        private const val KEY_REMEMBER_ME = "remember_me"
     }
 
-    fun saveUserId(userId: Int) {
-        prefs.edit().putInt(KEY_USER_ID, userId).apply()
+    fun saveUserId(userId: Int, rememberMe: Boolean = true) {
+        prefs.edit()
+            .putInt(KEY_USER_ID, userId)
+            .putBoolean(KEY_REMEMBER_ME, rememberMe)
+            .apply()
     }
 
     fun getUserId(): Int {
         return prefs.getInt(KEY_USER_ID, -1)
     }
 
+    fun isRememberMe(): Boolean {
+        return prefs.getBoolean(KEY_REMEMBER_ME, false)
+    }
+
     fun clearSession() {
-        prefs.edit().remove(KEY_USER_ID).apply()
+        prefs.edit().remove(KEY_USER_ID).remove(KEY_REMEMBER_ME).apply()
     }
 }

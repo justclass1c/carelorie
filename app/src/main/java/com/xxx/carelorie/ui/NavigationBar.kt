@@ -1,6 +1,11 @@
 package com.xxx.carelorie.ui
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -21,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -118,9 +124,14 @@ fun BottomNavBar(
             }
         }
     ) { contentPadding ->
-        Row(modifier = Modifier.padding(contentPadding)) {
+        Row(modifier = Modifier.fillMaxSize()) {
             if (showNavigation && useRail) {
-                NavigationRail {
+                NavigationRail(
+                    modifier = Modifier.padding(
+                        top = contentPadding.calculateTopPadding(),
+                        bottom = contentPadding.calculateBottomPadding()
+                    )
+                ) {
                     entries.forEach { screen ->
                         NavigationRailItem(
                             selected = isSelected(screen.route),
@@ -137,15 +148,29 @@ fun BottomNavBar(
                 }
             }
 
-            AppNavigation(
-                navController = navController,
-                widthSizeClass = widthSizeClass,
-                authViewModel = authViewModel,
-                profileViewModel = profileViewModel,
-                dashboardViewModel = dashboardViewModel,
-                foodSearchViewModel = foodSearchViewModel,
-                sessionManager = sessionManager
-            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(
+                        top = contentPadding.calculateTopPadding(),
+                        bottom = contentPadding.calculateBottomPadding(),
+                        // Only apply the Scaffold's side padding if the rail ISN'T there.
+                        // This prevents the "too much left margin" issue in landscape.
+                        start = if (showNavigation && useRail) 0.dp else contentPadding.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+                        end = contentPadding.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+                    )
+            ) {
+                AppNavigation(
+                    navController = navController,
+                    widthSizeClass = widthSizeClass,
+                    authViewModel = authViewModel,
+                    profileViewModel = profileViewModel,
+                    dashboardViewModel = dashboardViewModel,
+                    foodSearchViewModel = foodSearchViewModel,
+                    sessionManager = sessionManager
+                )
+            }
         }
     }
 }

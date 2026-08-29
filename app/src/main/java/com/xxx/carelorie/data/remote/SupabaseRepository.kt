@@ -144,7 +144,9 @@ class SupabaseRepository {
 
     suspend fun seedFoodPresets(presets: List<RemoteFoodPreset>) = withContext(Dispatchers.IO) {
         try {
-            supabase.postgrest["food_presets"].insert(presets)
+            supabase.postgrest["food_presets"].upsert(presets) {
+                onConflict = "name"
+            }
         } catch (e: PostgrestRestException) {
             Log.e("SupabaseRepository", "Postgrest error seeding food presets: ${e.description} (Code: ${e.code})", e)
         } catch (e: Exception) {

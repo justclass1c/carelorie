@@ -40,10 +40,10 @@ class AppContainer(context: Context) {
     val openFoodFactsService: OpenFoodFactsService by lazy { OpenFoodFactsService() }
 
     /**
-     * Real recogniser when GEMINI_API_KEY is set in local.properties, stub otherwise.
+     * Real recogniser when DEEPSEEK_API_KEY is set in local.properties, stub otherwise.
      * Every screen works either way.
      */
     val foodRecognitionService: FoodRecognitionService by lazy {
-        FoodRecognitionServiceProvider.create(BuildConfig.GEMINI_API_KEY)
+        FoodRecognitionServiceProvider.create(BuildConfig.DEEPSEEK_API_KEY)
     }
 }

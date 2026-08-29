@@ -17,6 +17,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,14 +27,19 @@ import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
+val LocalDateSaver: Saver<LocalDate, String> = Saver(
+    save = { it.toString() },
+    restore = { LocalDate.parse(it) }
+)
+
 @Composable
 fun WeightUpdateDialog(
     onDismiss: () -> Unit,
     onConfirm: (Float, LocalDate) -> Unit
 ) {
-    var weightInput by remember { mutableStateOf("") }
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
-    var error by remember { mutableStateOf<String?>(null) }
+    var weightInput by rememberSaveable { mutableStateOf("") }
+    var selectedDate by rememberSaveable(stateSaver = LocalDateSaver) { mutableStateOf(LocalDate.now()) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
     
     val context = LocalContext.current
     val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")

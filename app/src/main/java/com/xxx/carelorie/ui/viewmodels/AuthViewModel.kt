@@ -119,7 +119,9 @@ class AuthViewModel(
             if (result.isSuccess) {
                 val userId = result.getOrNull()
                 if (userId != null) {
-                    sessionManager.saveUserId(userId)
+                    // Registration counts as a fresh login; we remember by default here
+                    // to avoid confusing the "Remember Me" toggle which is on the login screen.
+                    sessionManager.saveUserId(userId, rememberMe = true)
                 }
                 _uiState.update { it.copy(isLoading = false, isSuccess = true, successUserId = userId) }
             } else {
@@ -146,9 +148,7 @@ class AuthViewModel(
             _uiState.update { it.copy(isLoading = true) }
             val user = repository.getUserByEmail(email)
             if (user != null && user.password == password) {
-                if (_uiState.value.isRememberMeChecked) {
-                    sessionManager.saveUserId(user.userId)
-                }
+                sessionManager.saveUserId(user.userId, _uiState.value.isRememberMeChecked)
                 _uiState.update { it.copy(isLoading = false, isSuccess = true, successUserId = user.userId) }
             } else {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "Invalid email or password") }

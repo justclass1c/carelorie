@@ -6,10 +6,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -22,9 +28,6 @@ sealed interface RecognitionResult {
 
 /**
  * Turns a photo of a meal into food candidates.
- *
- * Two implementations exist so the feature can be built, demoed and marked before an API key
- * exists. Swap by changing [FoodRecognitionServiceProvider.create] — nothing else changes.
  */
 interface FoodRecognitionService {
     suspend fun recognise(imageBase64: String): RecognitionResult
@@ -33,9 +36,6 @@ interface FoodRecognitionService {
 
 /**
  * Returns plausible results without any network call.
- *
- * This is not dead code: it makes the camera to review to log flow fully demonstrable, and it
- * keeps the app working if the key is missing or its quota runs out mid-presentation.
  */
 class StubFoodRecognitionService : FoodRecognitionService {
 
@@ -80,31 +80,26 @@ class StubFoodRecognitionService : FoodRecognitionService {
     )
 
     override suspend fun recognise(imageBase64: String): RecognitionResult {
-        delay(1400) // stand in for network latency so the loading state is visible
-        // Deterministic per image, so the same photo always gives the same answer.
+        delay(1400)
         val index = if (imageBase64.isEmpty()) 0 else imageBase64.length % sampleMeals.size
         return RecognitionResult.Success(sampleMeals[index])
     }
 }
 
 /**
- * Real implementation, calling Gemini's vision endpoint.
- *
- * The key comes from BuildConfig, which reads local.properties (never committed). Note that a
- * key compiled into an APK can be extracted from it — fine for coursework with a rotatable
- * free-tier key, but a Supabase Edge Function proxy is the correct fix for anything real.
+ * Real implementation, calling DeepSeek's vision endpoint.
  */
-class GeminiFoodRecognitionService(private val apiKey: String) : FoodRecognitionService {
+class DeepSeekFoodRecognitionService(private val apiKey: String) : FoodRecognitionService {
 
     override val isConfigured: Boolean = apiKey.isNotBlank()
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private companion object {
-        const val TAG = "GeminiRecognition"
-        const val ENDPOINT =
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-        const val TIMEOUT_MS = 30_000
+        const val TAG = "DeepSeekRecognition"
+        const val ENDPOINT = "https://api.deepseek.com/chat/completions"
+        const val MODEL = "deepseek-chat"
+        const val TIMEOUT_MS = 60_000
         const val PROMPT = """You are a nutrition estimator. Identify every distinct food item in this photo.
 Reply with ONLY a JSON array, no markdown fences and no commentary. Each element must be:
 {"name":string,"calories":int,"protein_g":number,"carbs_g":number,"fat_g":number,
@@ -118,38 +113,59 @@ the local recipe. Return [] if there is no food in the image."""
         withContext(Dispatchers.IO) {
             if (!isConfigured) return@withContext RecognitionResult.NotConfigured
 
-            val requestBody = buildString {
-                append("""{"contents":[{"parts":[""")
-                append("""{"text":${json.encodeToString(kotlinx.serialization.json.JsonPrimitive.serializer(), kotlinx.serialization.json.JsonPrimitive(PROMPT))}},""")
-                append("""{"inline_data":{"mime_type":"image/jpeg","data":"$imageBase64"}}""")
-                append("""]}],"generationConfig":{"temperature":0.2}}""")
-            }
+            val requestBody = buildJsonObject {
+                put("model", MODEL)
+                putJsonArray("messages") {
+                    addJsonObject {
+                        put("role", "user")
+                        putJsonArray("content") {
+                            addJsonObject {
+                                put("type", "text")
+                                put("text", PROMPT)
+                            }
+                            addJsonObject {
+                                put("type", "image_url")
+                                putJsonObject("image_url") {
+                                    put("url", "data:image/jpeg;base64,$imageBase64")
+                                }
+                            }
+                        }
+                    }
+                }
+                put("max_tokens", 2048)
+                put("temperature", 0.2)
+            }.toString()
 
             var connection: HttpURLConnection? = null
             try {
-                connection = (URL("$ENDPOINT?key=$apiKey").openConnection() as HttpURLConnection).apply {
+                connection = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
                     requestMethod = "POST"
                     connectTimeout = TIMEOUT_MS
                     readTimeout = TIMEOUT_MS
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json")
+                    setRequestProperty("Authorization", "Bearer $apiKey")
                 }
                 connection.outputStream.use { it.write(requestBody.toByteArray()) }
 
                 if (connection.responseCode !in 200..299) {
                     val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
                     Log.e(TAG, "HTTP ${connection.responseCode}: $error")
-                    return@withContext RecognitionResult.Failure(
-                        "Could not analyse the photo (error ${connection.responseCode})."
-                    )
+                    
+                    val detailedReason = when(connection.responseCode) {
+                        400 -> "The AI request was malformed. Please try again."
+                        401 -> "Invalid API Key. Check your DeepSeek configuration."
+                        429 -> "Too many requests. Please wait a moment."
+                        else -> "Could not analyse the photo (error ${connection.responseCode})."
+                    }
+                    return@withContext RecognitionResult.Failure(detailedReason)
                 }
 
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
-                val text = json.parseToJsonElement(body).jsonObject["candidates"]
-                    ?.jsonArray?.firstOrNull()?.jsonObject
-                    ?.get("content")?.jsonObject
-                    ?.get("parts")?.jsonArray?.firstOrNull()?.jsonObject
-                    ?.get("text")?.jsonPrimitive?.content
+                val responseJson = json.parseToJsonElement(body).jsonObject
+                val text = responseJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+                    ?.get("message")?.jsonObject
+                    ?.get("content")?.jsonPrimitive?.content
                     ?: return@withContext RecognitionResult.Failure("The response was empty.")
 
                 val candidates = parseCandidates(text)
@@ -160,18 +176,17 @@ the local recipe. Return [] if there is no food in the image."""
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Recognition failed", e)
-                RecognitionResult.Failure("Could not reach the service. Check your connection.")
+                RecognitionResult.Failure("Could not reach DeepSeek. Check your connection.")
             } finally {
                 connection?.disconnect()
             }
         }
 
     private fun parseCandidates(raw: String): List<FoodCandidate> {
-        // Models often wrap JSON in ```json fences despite instructions.
         val cleaned = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
         return try {
             val element = json.parseToJsonElement(cleaned)
-            if (element !is kotlinx.serialization.json.JsonArray) {
+            if (element !is JsonArray) {
                 Log.w(TAG, "Expected JSON array but got: $cleaned")
                 return emptyList()
             }
@@ -212,8 +227,7 @@ the local recipe. Return [] if there is no food in the image."""
 object FoodRecognitionServiceProvider {
     /**
      * Picks the real service when a key is present, otherwise the stub.
-     * Add GEMINI_API_KEY to local.properties to switch over — no code change needed.
      */
     fun create(apiKey: String): FoodRecognitionService =
-        if (apiKey.isNotBlank()) GeminiFoodRecognitionService(apiKey) else StubFoodRecognitionService()
+        if (apiKey.isNotBlank()) DeepSeekFoodRecognitionService(apiKey) else StubFoodRecognitionService()
 }

@@ -11,5 +11,11 @@ class CarelorieApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+
+        // If the user didn't want to be remembered, clear the ID on start
+        // so they have to login again.
+        if (!container.sessionManager.isRememberMe()) {
+            container.sessionManager.clearSession()
+        }
     }
 }

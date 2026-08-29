@@ -11,6 +11,10 @@ class UserRepository(
     private val sessionManager: SessionManager,
     private val supabaseRepository: SupabaseRepository
 ) {
+    companion object {
+        fun formatUserId(userId: Int): String = "U%03d".format(userId)
+    }
+
     fun saveSession(userId: Int) = sessionManager.saveUserId(userId)
     fun getSessionUserId(): Int = sessionManager.getUserId()
     fun clearSession() = sessionManager.clearSession()

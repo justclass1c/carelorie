@@ -96,13 +96,11 @@ class FoodRepository(
 
         if (localId.isNotBlank()) foodLogDao.markPendingDelete(localId)
 
-        return if (supabaseRepository.deleteFoodLog(remoteId)) {
-            if (localId.isNotBlank()) foodLogDao.deleteByLocalId(localId)
-            true
-        } else {
-            // Stays hidden locally and is retried on the next sync.
-            false
-        }
+        // We return true immediately so the UI remains responsive. 
+        // The background sync (flushPendingDeletes) will handle the server removal.
+        // We do NOT deleteByLocalId here anymore; we wait for the server to confirm 
+        // the deletion by omitting it from the next refresh response.
+        return true
     }
 
     // ---------------------------------------------------------------- sync
@@ -130,7 +128,24 @@ class FoodRepository(
         }
 
         foodLogDao.clearSyncedFrom(userId, from.toString())
-        foodLogDao.upsertAll(remote.map { it.toEntity(isSynced = true) })
+        
+        // Filter out items that are currently pending delete locally, 
+        // to prevent them from being resurrected by the server copy.
+        val pendingDeletes = foodLogDao.getPendingDeletes()
+        val pendingDeleteIds = pendingDeletes.mapNotNull { it.remoteId }.toSet()
+        val filteredRemote = remote.filter { it.id !in pendingDeleteIds }
+        
+        // If a pending delete ID is NO LONGER in the server response, 
+        // it means the deletion has succeeded on the server (or it was never there).
+        // We can now safely remove it from the local database.
+        val remoteIdsFromServer = remote.mapNotNull { it.id }.toSet()
+        pendingDeletes.forEach { localEntry ->
+            if (localEntry.remoteId != null && localEntry.remoteId !in remoteIdsFromServer) {
+                foodLogDao.deleteByLocalId(localEntry.localId)
+            }
+        }
+
+        foodLogDao.upsertAll(filteredRemote.map { it.toEntity(isSynced = true) })
         return SyncResult.SUCCESS
     }
 
@@ -174,10 +189,12 @@ class FoodRepository(
     suspend fun getFoodPresets(userId: Int): List<RemoteFoodPreset> {
         return try {
             val presets = supabaseRepository.fetchFoodPresets(userId)
-            if (presets.isEmpty()) {
+            // If the user hasn't seen the defaults yet, or they were lost, merge them.
+            // A simple isEmpty() check is insufficient if the user has added one custom preset.
+            if (presets.none { it.userId == null }) {
                 val defaults = DefaultFoodPresets.ALL
                 supabaseRepository.seedFoodPresets(defaults)
-                defaults
+                presets + defaults
             } else {
                 presets
             }

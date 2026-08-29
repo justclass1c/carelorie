@@ -13,7 +13,7 @@ val localProperties = Properties().apply {
     val file = rootProject.file("local.properties")
     if (file.exists()) file.inputStream().use { load(it) }
 }
-val geminiApiKey: String = localProperties.getProperty("GEMINI_API_KEY") ?: ""
+val deepseekApiKey: String = localProperties.getProperty("DEEPSEEK_API_KEY") ?: ""
 
 android {
     namespace = "com.xxx.carelorie"
@@ -30,7 +30,7 @@ android {
 
         // Supplied via local.properties (never committed). Empty means the app uses the
         // stub recogniser instead, which keeps every screen working without a key.
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "DEEPSEEK_API_KEY", "\"$deepseekApiKey\"")
     }
 
     buildTypes {

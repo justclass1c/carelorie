@@ -7,6 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -45,95 +47,120 @@ fun Profile(navController: NavController, userId: Int, viewModel: ProfileViewMod
         }
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        if (uiState.isOnboarding) {
-            Text(
-                text = "Welcome! Create your profile!",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "Profile (ID: ${uiState.userId})",
-                style = MaterialTheme.typography.headlineSmall
-            )
-            
-            IconButton(onClick = { viewModel.onEvent(ProfileUiEvent.ToggleEditMode) }) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit Profile")
+            if (uiState.isOnboarding) {
+                Text(
+                    text = "Welcome! Create your profile!",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                )
             }
-        }
 
-        Spacer(Modifier.height(10.dp))
-
-        Card(
-            shape = RoundedCornerShape(4.dp),
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(2.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        ) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = uiState.name.ifEmpty { "Username" },
-                    textAlign = TextAlign.Start,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyLarge
+                    text = "Profile (ID: ${com.xxx.carelorie.data.UserRepository.formatUserId(uiState.userId)})",
+                    style = MaterialTheme.typography.headlineSmall
                 )
 
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = "Profile Picture",
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                IconButton(onClick = { viewModel.onEvent(ProfileUiEvent.ToggleEditMode) }) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Profile")
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Card(
+                shape = RoundedCornerShape(4.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(2.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        text = uiState.name.ifEmpty { "Username" },
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Profile Picture",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(15.dp))
+
+            if (uiState.isEditMode) {
+                ProfileEditSection(uiState = uiState, onEvent = viewModel::onEvent)
+
+                Spacer(Modifier.height(24.dp))
+
+                Button(
+                    onClick = { viewModel.onEvent(ProfileUiEvent.SaveProfile) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isLoading
+                ) {
+                    if (uiState.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    } else {
+                        Text("Save Profile")
+                    }
+                }
+            } else {
+                ProfileViewSection(uiState = uiState)
+
+                Spacer(Modifier.height(32.dp))
+
+                OutlinedButton(
+                    onClick = { viewModel.onEvent(ProfileUiEvent.Logout) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Logout")
+                }
             }
         }
 
-        Spacer(Modifier.height(15.dp))
-
-        if (uiState.isEditMode) {
-            ProfileEditSection(uiState = uiState, onEvent = viewModel::onEvent)
-            
-            Spacer(Modifier.height(24.dp))
-            
-            Button(
-                onClick = { viewModel.onEvent(ProfileUiEvent.SaveProfile) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isLoading
-            ) {
-                if (uiState.isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                } else {
-                    Text("Save Profile")
-                }
-            }
-        } else {
-            ProfileViewSection(uiState = uiState)
-            
-            Spacer(Modifier.height(32.dp))
-            
-            OutlinedButton(
-                onClick = { viewModel.onEvent(ProfileUiEvent.Logout) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("Logout")
-            }
+        // AI Chat Floating Button
+        FloatingActionButton(
+            onClick = { navController.navigate("dietChat") },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = "AI Diet Advice"
+            )
         }
     }
 }

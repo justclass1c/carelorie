@@ -21,6 +21,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,8 +46,8 @@ fun GoalScreen(navController: NavController, userId: Int, viewModel: DashboardVi
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     
-    var selectedMonth by remember { mutableStateOf(YearMonth.now()) }
-    var showWeightDialog by remember { mutableStateOf(false) }
+    var selectedMonth by rememberSaveable { mutableStateOf(YearMonth.now()) }
+    var showWeightDialog by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(lifecycleOwner, userId) {
         val observer = LifecycleEventObserver { _, event ->

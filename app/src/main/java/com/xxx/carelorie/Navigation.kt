@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.ui.screens.Dashboard
+import com.xxx.carelorie.ui.screens.DietChatScreen
 import com.xxx.carelorie.ui.screens.FoodLogScreen
 import com.xxx.carelorie.ui.screens.FoodSearchScreen
 import com.xxx.carelorie.ui.screens.GoalScreen
@@ -40,6 +41,7 @@ object Routes {
     const val PROFILE = "profile"
     const val FOOD_SEARCH = "foodSearch"
     const val REVIEW_FOODS = "reviewFoods"
+    const val DIET_CHAT = "dietChat"
 
     fun foodSearch(mealType: String) = "$FOOD_SEARCH/$mealType"
     fun profile(isOnboarding: Boolean = false) = "$PROFILE?isOnboarding=$isOnboarding"
@@ -157,6 +159,15 @@ fun AppNavigation(
                 userId = currentUserId,
                 viewModel = profileViewModel,
                 isOnboarding = isOnboarding
+            )
+        }
+
+        composable(Routes.DIET_CHAT) {
+            val dietChatViewModel: com.xxx.carelorie.ui.viewmodels.DietChatViewModel =
+                viewModel(factory = CarelorieViewModelFactories.DietChat(currentUserId))
+            DietChatScreen(
+                navController = navController,
+                viewModel = dietChatViewModel
             )
         }
     }

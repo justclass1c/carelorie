@@ -101,7 +101,7 @@ fun Dashboard(
         ) {
             Column(horizontalAlignment = Alignment.Start) {
                 Text(
-                    text = "Welcome, ${uiState.username}.",
+                    text = "Welcome, ${uiState.username}",
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Text(
@@ -137,7 +137,7 @@ fun Dashboard(
                         // Left: Calendar Chart (Sets the height)
                         ProgressPreview(
                             weeklyData = uiState.weeklyIntake,
-                            modifier = Modifier.weight(0.6f)
+                            modifier = Modifier.weight(0.5f)
                         )
 
                         Spacer(modifier = Modifier.width(24.dp))
@@ -145,7 +145,7 @@ fun Dashboard(
                         // Right: Macro Grid (Shrinks to match ProgressPreview height)
                         Column(
                             modifier = Modifier
-                                .weight(0.4f)
+                                .weight(0.5f)
                                 .fillMaxHeight(),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
