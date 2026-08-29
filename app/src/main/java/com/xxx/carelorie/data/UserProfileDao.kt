@@ -11,5 +11,5 @@ interface UserProfileDao {
     suspend fun insertOrUpdateProfile(profile: UserProfile)
 
     @Query("SELECT * FROM user_profiles WHERE userId = :userId LIMIT 1")
-    suspend fun getProfileByUserId(userId: Int): UserProfile?
+    suspend fun getProfileByUserId(userId: String): UserProfile?
 }

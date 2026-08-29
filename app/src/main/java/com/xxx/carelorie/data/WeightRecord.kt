@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "weight_records")
 data class WeightRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val userId: Int,
+    val userId: String,
     val date: String, // format: YYYY-MM-DD
     val weight: Float
 )

@@ -1,6 +1,7 @@
 package com.xxx.carelorie.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,7 +24,7 @@ import com.xxx.carelorie.ui.viewmodels.AuthUiEvent
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 
 @Composable
-fun LoginScreen(onLoginSuccess: (Int) -> Unit, navController: NavController, viewModel: AuthViewModel) {
+fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, viewModel: AuthViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
@@ -46,6 +47,7 @@ fun LoginScreen(onLoginSuccess: (Int) -> Unit, navController: NavController, vie
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .statusBarsPadding()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

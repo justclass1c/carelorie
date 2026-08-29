@@ -30,40 +30,42 @@ class FoodRepository(
 
     // ---------------------------------------------------------------- reads (always local)
 
-    fun observeLogsForDate(userId: Int, date: LocalDate): Flow<List<RemoteFoodLog>> =
+    fun observeLogsForDate(userId: String, date: LocalDate): Flow<List<RemoteFoodLog>> =
         foodLogDao.observeForDate(userId, date.toString()).map { list -> list.map { it.toRemote() } }
 
-    fun observeLogsBetween(userId: Int, start: LocalDate, end: LocalDate): Flow<List<RemoteFoodLog>> =
+    fun observeLogsBetween(userId: String, start: LocalDate, end: LocalDate): Flow<List<RemoteFoodLog>> =
         foodLogDao.observeBetween(userId, start.toString(), end.toString())
             .map { list -> list.map { it.toRemote() } }
 
-    fun observeLoggedDates(userId: Int): Flow<Set<LocalDate>> =
+    fun observeLoggedDates(userId: String): Flow<Set<LocalDate>> =
         foodLogDao.observeLoggedDates(userId).map { dates ->
             dates.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.toSet()
         }
 
-    suspend fun getDailyLogs(userId: Int, date: String): List<RemoteFoodLog> {
-        refresh(userId, LocalDate.parse(date))
+    suspend fun getDailyLogs(userId: String, date: String): List<RemoteFoodLog> {
+        refresh(userId, LocalDate.parse(date), LocalDate.parse(date))
         return foodLogDao.getFrom(userId, date)
             .filter { it.logDate == date }
             .map { it.toRemote() }
     }
 
-    suspend fun getMonthlyLogs(userId: Int, yearMonth: YearMonth): List<RemoteFoodLog> {
+    suspend fun getMonthlyLogs(userId: String, yearMonth: YearMonth): List<RemoteFoodLog> {
         val start = yearMonth.atDay(1)
-        refresh(userId, start)
+        val end = yearMonth.atEndOfMonth()
+        refresh(userId, start, end)
         return foodLogDao.getFrom(userId, start.toString()).map { it.toRemote() }
     }
 
-    suspend fun getWeeklyLogs(userId: Int): List<RemoteFoodLog> {
+    suspend fun getWeeklyLogs(userId: String): List<RemoteFoodLog> {
         val start = LocalDate.now().minusDays(7)
-        refresh(userId, start)
+        val end = LocalDate.now()
+        refresh(userId, start, end)
         return foodLogDao.getFrom(userId, start.toString()).map { it.toRemote() }
     }
 
     // ---------------------------------------------------------------- writes (local first)
 
-    suspend fun logFood(userId: Int, mealType: String, food: RemoteFoodPreset) {
+    suspend fun logFood(userId: String, mealType: String, food: RemoteFoodPreset) {
         val now = LocalDateTime.now().toString()
         val entity = FoodLogEntity(
             localId = UUID.randomUUID().toString(),
@@ -106,47 +108,76 @@ class FoodRepository(
     // ---------------------------------------------------------------- sync
 
     /**
-     * Pulls server state from [from] onwards into Room, after flushing anything queued locally.
+     * Pulls server state for a specific range into Room, after flushing anything queued locally.
      * Safe to call often; failures leave the cache untouched.
      */
-    suspend fun refresh(userId: Int, from: LocalDate): SyncResult {
+    /**
+     * Pulls server state for a specific range into Room, after flushing anything queued locally.
+     * Safe to call often; failures leave the cache untouched.
+     */
+    suspend fun refresh(userId: String, start: LocalDate, end: LocalDate? = null): SyncResult {
         pushUnsynced()
-        flushPendingDeletes()
+        val justDeleted = flushPendingDeletes()
 
+        val fetchStart = start.toString()
         val remote = try {
-            supabaseRepository.fetchFoodLogsRange(userId, from.toString())
+            supabaseRepository.fetchFoodLogsRange(userId, fetchStart)
         } catch (e: Exception) {
             e.printStackTrace()
             return SyncResult.OFFLINE
         }
 
-        if (remote.isEmpty()) {
-            // Cannot distinguish "no rows" from "request failed", so keep what we have
-            // rather than wiping a good cache.
-            val cached = foodLogDao.getFrom(userId, from.toString())
-            if (cached.any { it.isSynced }) return SyncResult.OFFLINE
+        // If we have an end date, filter the remote results to only include what we asked for.
+        // Supabase fetchFoodLogsRange uses gte(createdAt), so it might return more than we need.
+        val filteredByDate = if (end != null) {
+            val endStr = end.toString()
+            remote.filter { it.createdAt.take(10) <= endStr }
+        } else {
+            remote
         }
 
-        foodLogDao.clearSyncedFrom(userId, from.toString())
+        foodLogDao.clearSyncedFrom(userId, fetchStart)
+        
+        val pendingDeletes = foodLogDao.getPendingDeletes()
+        val pendingDeleteIds = (pendingDeletes.mapNotNull { it.remoteId } + justDeleted).toSet()
         
         // Filter out items that are currently pending delete locally, 
         // to prevent them from being resurrected by the server copy.
-        val pendingDeletes = foodLogDao.getPendingDeletes()
-        val pendingDeleteIds = pendingDeletes.mapNotNull { it.remoteId }.toSet()
-        val filteredRemote = remote.filter { it.id !in pendingDeleteIds }
+        val filteredRemote = filteredByDate.filter { it.id !in pendingDeleteIds }
         
-        // If a pending delete ID is NO LONGER in the server response, 
-        // it means the deletion has succeeded on the server (or it was never there).
-        // We can now safely remove it from the local database.
-        val remoteIdsFromServer = remote.mapNotNull { it.id }.toSet()
+        // If a pending delete ID is NO LONGER in the server response AND it falls within the 
+        // range we just fetched, it means the deletion has succeeded on the server.
+        val remoteIdsFromServer = filteredByDate.mapNotNull { it.id }.toSet()
+        val endStr = end?.toString() ?: "9999-12-31"
+        
         pendingDeletes.forEach { localEntry ->
-            if (localEntry.remoteId != null && localEntry.remoteId !in remoteIdsFromServer) {
+            val rId = localEntry.remoteId
+            val date = localEntry.logDate
+            if (rId != null && rId !in remoteIdsFromServer && date >= fetchStart && date <= endStr) {
                 foodLogDao.deleteByLocalId(localEntry.localId)
             }
         }
 
-        foodLogDao.upsertAll(filteredRemote.map { it.toEntity(isSynced = true) })
+        // Before inserting, try to match remoteId to existing local entries to preserve localId
+        val existingEntries = foodLogDao.getFrom(userId, fetchStart)
+        val remoteIdToLocalId = existingEntries.mapNotNull { e -> 
+            e.remoteId?.let { it to e.localId } 
+        }.toMap()
+
+        val entities = filteredRemote.map { remoteLog ->
+            val existingLocalId = remoteLog.id?.let { remoteIdToLocalId[it] }
+            remoteLog.toEntity(
+                localId = existingLocalId ?: UUID.randomUUID().toString(),
+                isSynced = true
+            )
+        }
+
+        foodLogDao.upsertAll(entities)
         return SyncResult.SUCCESS
+    }
+
+    suspend fun refreshRange(userId: String, start: LocalDate, end: LocalDate): SyncResult {
+        return refresh(userId, start, end)
     }
 
     private suspend fun pushUnsynced() {
@@ -163,11 +194,12 @@ class FoodRepository(
         }
     }
 
-    private suspend fun flushPendingDeletes() {
+    private suspend fun flushPendingDeletes(): Set<Int> {
+        val deletedRemoteIds = mutableSetOf<Int>()
         val pending = try {
             foodLogDao.getPendingDeletes()
         } catch (e: Exception) {
-            return
+            return emptySet()
         }
         for (entry in pending) {
             val remoteId = entry.remoteId
@@ -175,8 +207,10 @@ class FoodRepository(
                 foodLogDao.deleteByLocalId(entry.localId)
             } else if (supabaseRepository.deleteFoodLog(remoteId)) {
                 foodLogDao.deleteByLocalId(entry.localId)
+                deletedRemoteIds.add(remoteId)
             }
         }
+        return deletedRemoteIds
     }
 
 
@@ -186,7 +220,7 @@ class FoodRepository(
 
     // ---------------------------------------------------------------- presets
 
-    suspend fun getFoodPresets(userId: Int): List<RemoteFoodPreset> {
+    suspend fun getFoodPresets(userId: String): List<RemoteFoodPreset> {
         return try {
             val presets = supabaseRepository.fetchFoodPresets(userId)
             // If the user hasn't seen the defaults yet, or they were lost, merge them.

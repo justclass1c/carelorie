@@ -19,13 +19,13 @@ import java.util.UUID
     tableName = "food_log_entries",
     indices = [
         Index(value = ["userId", "logDate"]),
-        Index(value = ["remoteId"])
+        Index(value = ["remoteId"], unique = true)
     ]
 )
 data class FoodLogEntity(
     @PrimaryKey val localId: String = UUID.randomUUID().toString(),
     val remoteId: Int? = null,
-    val userId: Int,
+    val userId: String,
     val mealType: String,
     val foodName: String,
     val calories: Int,

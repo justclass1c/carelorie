@@ -1,5 +1,6 @@
 package com.xxx.carelorie.ui.screens
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,7 +49,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun Dashboard(
     navController: NavController,
-    userId: Int,
+    userId: String,
     viewModel: DashboardViewModel,
     widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact
 ) {
@@ -97,6 +98,7 @@ fun Dashboard(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .statusBarsPadding()
                 .padding(24.dp)
         ) {
             Column(horizontalAlignment = Alignment.Start) {

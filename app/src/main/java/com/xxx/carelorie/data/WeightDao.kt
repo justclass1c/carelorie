@@ -11,11 +11,11 @@ interface WeightDao {
     suspend fun insertOrUpdateWeight(weightRecord: WeightRecord)
 
     @Query("SELECT * FROM weight_records WHERE userId = :userId AND date = :date LIMIT 1")
-    suspend fun getWeightForDay(userId: Int, date: String): WeightRecord?
+    suspend fun getWeightForDay(userId: String, date: String): WeightRecord?
 
     @Query("SELECT * FROM weight_records WHERE userId = :userId ORDER BY date ASC")
-    suspend fun getAllWeightRecords(userId: Int): List<WeightRecord>
+    suspend fun getAllWeightRecords(userId: String): List<WeightRecord>
 
     @Query("SELECT * FROM weight_records WHERE userId = :userId AND date LIKE :month || '%' ORDER BY date ASC")
-    suspend fun getWeightRecordsForMonth(userId: Int, month: String): List<WeightRecord>
+    suspend fun getWeightRecordsForMonth(userId: String, month: String): List<WeightRecord>
 }

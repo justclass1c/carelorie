@@ -35,10 +35,10 @@ data class DashboardUiState(
 }
 
 sealed class DashboardEvent {
-    data class LoadData(val userId: Int) : DashboardEvent()
-    data class UpdateWeight(val userId: Int, val weight: Float, val date: LocalDate) : DashboardEvent()
-    data class ChangeMonth(val userId: Int, val yearMonth: YearMonth) : DashboardEvent()
-    data class DeleteLog(val userId: Int, val log: RemoteFoodLog) : DashboardEvent()
+    data class LoadData(val userId: String) : DashboardEvent()
+    data class UpdateWeight(val userId: String, val weight: Float, val date: LocalDate) : DashboardEvent()
+    data class ChangeMonth(val userId: String, val yearMonth: YearMonth) : DashboardEvent()
+    data class DeleteLog(val userId: String, val log: RemoteFoodLog) : DashboardEvent()
     object MessageConsumed : DashboardEvent()
 }
 
@@ -61,7 +61,7 @@ class DashboardViewModel(
         }
     }
 
-    private fun loadDashboardData(userId: Int, yearMonth: YearMonth = YearMonth.now()) {
+    private fun loadDashboardData(userId: String, yearMonth: YearMonth = YearMonth.now()) {
         Log.d("DashboardViewModel", "loadDashboardData started for userId: $userId, month: $yearMonth")
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
@@ -77,10 +77,17 @@ class DashboardViewModel(
                     today.minusDays(7)
 
                 Log.d("DashboardViewModel", "Fetching logs from $fetchStartDate...")
+                // Refresh the whole range to ensure consistency
+                try {
+                    foodRepository.refreshRange(userId, fetchStartDate, today)
+                } catch (e: Exception) {
+                    Log.e("DashboardViewModel", "Error refreshing logs", e)
+                }
+
                 val allLogs = try {
                     foodRepository.getMonthlyLogs(userId, YearMonth.from(fetchStartDate)) 
                 } catch (e: Exception) {
-                    Log.e("DashboardViewModel", "Error fetching logs", e)
+                    Log.e("DashboardViewModel", "Error fetching logs from cache", e)
                     emptyList()
                 }
                 
@@ -140,7 +147,7 @@ class DashboardViewModel(
 
                 _uiState.update { 
                     it.copy(
-                        username = profile?.name ?: UserRepository.formatUserId(userId),
+                        username = profile?.name ?: userId,
                         weeklyIntake = weeklyData,
                         monthlyIntake = monthlyData,
                         todayLogs = todayLogs,
@@ -162,7 +169,7 @@ class DashboardViewModel(
         }
     }
 
-    private fun deleteLog(userId: Int, log: RemoteFoodLog) {
+    private fun deleteLog(userId: String, log: RemoteFoodLog) {
         viewModelScope.launch {
             // Row disappears immediately; the repository removes it locally first and
             // reconciles with the server after.
@@ -183,7 +190,7 @@ class DashboardViewModel(
         }
     }
 
-    private fun updateWeight(userId: Int, weight: Float, date: LocalDate) {
+    private fun updateWeight(userId: String, weight: Float, date: LocalDate) {
         viewModelScope.launch {
             userRepository.saveWeight(userId, weight, date.toString())
             // Reload data to update graph

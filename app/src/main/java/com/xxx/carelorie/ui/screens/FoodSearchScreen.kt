@@ -41,7 +41,7 @@ import java.io.ByteArrayOutputStream
 @Composable
 fun FoodSearchScreen(
     navController: NavController,
-    userId: Int,
+    userId: String,
     mealType: String,
     viewModel: FoodSearchViewModel,
     isWideScreen: Boolean = false
@@ -197,7 +197,11 @@ fun FoodSearchScreen(
             if (uiState.isAnalysing) {
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
+                    )
                     Spacer(Modifier.width(12.dp))
                     Text(
                         "Analysing your photo…",

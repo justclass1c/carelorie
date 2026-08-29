@@ -3,7 +3,7 @@ package com.xxx.carelorie
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
@@ -59,17 +59,17 @@ fun AppNavigation(
     sessionManager: SessionManager
 ) {
     val savedUserId = sessionManager.getUserId()
-    var currentUserId by rememberSaveable { mutableIntStateOf(savedUserId) }
+    var currentUserId by rememberSaveable { mutableStateOf(savedUserId) }
     val isWideScreen = widthSizeClass != WindowWidthSizeClass.Compact
 
     NavHost(
         navController = navController,
-        startDestination = if (savedUserId != -1) Routes.DASHBOARD else Routes.LOGIN,
+        startDestination = if (savedUserId.isNotEmpty()) Routes.DASHBOARD else Routes.LOGIN,
         modifier = modifier
     ) {
         composable(Routes.LOGIN) {
             LoginScreen(
-                onLoginSuccess = { userId ->
+                onLoginSuccess = { userId: String ->
                     currentUserId = userId
                     navController.navigate(Routes.DASHBOARD) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
@@ -84,7 +84,7 @@ fun AppNavigation(
             RegisterScreen(
                 navController = navController,
                 viewModel = authViewModel,
-                onRegisterSuccess = { userId ->
+                onRegisterSuccess = { userId: String ->
                     currentUserId = userId
                     navController.navigate(Routes.profile(isOnboarding = true)) {
                         popUpTo(Routes.REGISTER) { inclusive = true }
@@ -175,15 +175,15 @@ fun AppNavigation(
 
 /**
  * Renders [content] only when a user is signed in, otherwise bounces back to login.
- * Replaces the copy-pasted `if (currentUserId != -1) ... else LaunchedEffect` blocks.
+ * Replaces the copy-pasted `if (currentUserId != "") ... else LaunchedEffect` blocks.
  */
 @Composable
 private fun RequireUser(
-    userId: Int,
+    userId: String,
     navController: NavHostController,
-    content: @Composable (Int) -> Unit
+    content: @Composable (String) -> Unit
 ) {
-    if (userId != -1) {
+    if (userId.isNotEmpty()) {
         content(userId)
     } else {
         LaunchedEffect(Unit) {

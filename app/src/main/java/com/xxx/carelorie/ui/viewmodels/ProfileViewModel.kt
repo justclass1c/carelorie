@@ -14,11 +14,12 @@ import java.time.LocalDate
 import java.util.regex.Pattern
 
 data class ProfileUiState(
-    val userId: Int = -1,
+    val userId: String = "",
     val name: String = "",
     val birthday: String = "",
     val gender: String = "",
     val height: String = "",
+    val weight: String = "",
     val liftingExperience: String = "",
     val isEditMode: Boolean = false,
     val isLoading: Boolean = false,
@@ -29,11 +30,12 @@ data class ProfileUiState(
 )
 
 sealed class ProfileUiEvent {
-    data class LoadProfile(val userId: Int, val isOnboarding: Boolean = false) : ProfileUiEvent()
+    data class LoadProfile(val userId: String, val isOnboarding: Boolean = false) : ProfileUiEvent()
     data class NameChanged(val name: String) : ProfileUiEvent()
     data class BirthdayChanged(val birthday: String) : ProfileUiEvent()
     data class GenderChanged(val gender: String) : ProfileUiEvent()
     data class HeightChanged(val height: String) : ProfileUiEvent()
+    data class WeightChanged(val weight: String) : ProfileUiEvent()
     data class ExperienceChanged(val experience: String) : ProfileUiEvent()
     object ToggleEditMode : ProfileUiEvent()
     object SaveProfile : ProfileUiEvent()
@@ -57,6 +59,7 @@ class ProfileViewModel(
             is ProfileUiEvent.BirthdayChanged -> _uiState.update { it.copy(birthday = event.birthday) }
             is ProfileUiEvent.GenderChanged -> _uiState.update { it.copy(gender = event.gender) }
             is ProfileUiEvent.HeightChanged -> _uiState.update { it.copy(height = event.height) }
+            is ProfileUiEvent.WeightChanged -> _uiState.update { it.copy(weight = event.weight) }
             is ProfileUiEvent.ExperienceChanged -> _uiState.update { it.copy(liftingExperience = event.experience) }
             is ProfileUiEvent.ToggleEditMode -> _uiState.update { it.copy(isEditMode = !it.isEditMode) }
             is ProfileUiEvent.SaveProfile -> saveProfile()
@@ -71,7 +74,7 @@ class ProfileViewModel(
         _uiState.update { it.copy(isLoggedOut = true) }
     }
 
-    private fun loadProfile(userId: Int, isOnboarding: Boolean) {
+    private fun loadProfile(userId: String, isOnboarding: Boolean) {
         _uiState.update { it.copy(userId = userId, isLoading = true, isOnboarding = isOnboarding) }
         viewModelScope.launch {
             val profile = repository.getProfile(userId)
@@ -82,6 +85,7 @@ class ProfileViewModel(
                         birthday = profile.birthday,
                         gender = profile.gender,
                         height = profile.height,
+                        weight = profile.weight,
                         liftingExperience = profile.liftingExperience,
                         isLoading = false,
                         isEditMode = if (isOnboarding) true else it.isEditMode
@@ -122,6 +126,11 @@ class ProfileViewModel(
             return
         }
 
+        if (state.weight.isNotEmpty() && state.weight.toDoubleOrNull() == null) {
+            _uiState.update { it.copy(errorMessage = "Weight must be a number") }
+            return
+        }
+
         if (state.liftingExperience.isNotEmpty() && state.liftingExperience.toIntOrNull() == null) {
             _uiState.update { it.copy(errorMessage = "Lifting experience must be a number of years") }
             return
@@ -135,6 +144,7 @@ class ProfileViewModel(
                 birthday = state.birthday,
                 gender = state.gender,
                 height = state.height,
+                weight = state.weight,
                 liftingExperience = state.liftingExperience
             )
             repository.saveProfile(profile)

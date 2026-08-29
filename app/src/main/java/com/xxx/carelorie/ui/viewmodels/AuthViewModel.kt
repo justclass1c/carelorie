@@ -21,7 +21,7 @@ data class AuthUiState(
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val isSuccess: Boolean = false,
-    val successUserId: Int? = null,
+    val successUserId: String? = null,
     val isRememberMeChecked: Boolean = false
 )
 

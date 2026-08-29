@@ -1,11 +1,12 @@
 package com.xxx.carelorie.data.remote
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
 @Serializable
 data class RemoteMacroIntake(
-    val userId: Int,
+    val userId: String,
     val date: String, // ISO 8601 string
     val protein: Float,
     val carbs: Float,
@@ -14,8 +15,9 @@ data class RemoteMacroIntake(
 
 @Serializable
 data class RemoteFoodLog(
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val id: Int? = null,
-    val userId: Int = -1,
+    val userId: String = "",
     val mealType: String = "",
     val foodName: String = "",
     val calories: Int = 0,
@@ -32,8 +34,9 @@ data class RemoteFoodLog(
 
 @Serializable
 data class RemoteFoodPreset(
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
     val id: Int? = null,
-    val userId: Int? = null,
+    val userId: String? = null,
     val name: String = "",
     val calories: Int = 0,
     val protein: Float = 0f,
@@ -44,17 +47,26 @@ data class RemoteFoodPreset(
 
 @Serializable
 data class RemoteUser(
-    val userId: Int? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val userId: String? = null,
     val email: String,
     val password: String
 )
 
 @Serializable
 data class RemoteUserProfile(
-    val userId: Int,
+    val userId: String,
     val name: String = "",
     val birthday: String? = null,
     val gender: String = "",
     val height: String = "",
-    val liftingExperience: String = ""
+    val liftingExperience: String = "",
+    val weight: String = ""
+)
+
+@Serializable
+data class RemoteWeightRecord(
+    val userId: String,
+    val weight: Float,
+    val date: String
 )

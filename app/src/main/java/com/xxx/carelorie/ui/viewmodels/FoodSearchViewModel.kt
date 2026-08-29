@@ -48,14 +48,14 @@ data class FoodSearchUiState(
 }
 
 sealed class FoodSearchEvent {
-    data class LoadPresets(val userId: Int) : FoodSearchEvent()
+    data class LoadPresets(val userId: String) : FoodSearchEvent()
     data class SearchQueryChanged(val query: String) : FoodSearchEvent()
     data class MealTypeChanged(val mealType: String) : FoodSearchEvent()
     data class ToggleSelection(val candidate: FoodCandidate) : FoodSearchEvent()
     data class ChangeQuantity(val candidate: FoodCandidate, val quantity: Float) : FoodSearchEvent()
     data class BarcodeScanned(val barcode: String) : FoodSearchEvent()
     data class PhotoCaptured(val imageBase64: String) : FoodSearchEvent()
-    data class LogSelected(val userId: Int) : FoodSearchEvent()
+    data class LogSelected(val userId: String) : FoodSearchEvent()
     object SearchOnline : FoodSearchEvent()
     object ClearSelection : FoodSearchEvent()
     object ShowPresets : FoodSearchEvent()
@@ -96,7 +96,7 @@ class FoodSearchViewModel(
         }
     }
 
-    private fun loadPresets(userId: Int) {
+    private fun loadPresets(userId: String) {
         _uiState.update { it.copy(isLoading = true) }
         viewModelScope.launch {
             val candidates = foodRepository.getFoodPresets(userId).map { preset ->
@@ -246,7 +246,7 @@ class FoodSearchViewModel(
         }
     }
 
-    private fun logSelected(userId: Int) {
+    private fun logSelected(userId: String) {
         val state = _uiState.value
         if (state.selected.isEmpty()) return
         val mealType = state.mealType

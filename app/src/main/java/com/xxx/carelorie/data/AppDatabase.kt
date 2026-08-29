@@ -9,7 +9,7 @@ import com.xxx.carelorie.data.local.FoodLogEntity
 
 @Database(
     entities = [User::class, UserProfile::class, WeightRecord::class, FoodLogEntity::class],
-    version = 5,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

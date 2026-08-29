@@ -11,19 +11,19 @@ class UserRepository(
     private val sessionManager: SessionManager,
     private val supabaseRepository: SupabaseRepository
 ) {
-    companion object {
-        fun formatUserId(userId: Int): String = "U%03d".format(userId)
-    }
-
-    fun saveSession(userId: Int) = sessionManager.saveUserId(userId)
-    fun getSessionUserId(): Int = sessionManager.getUserId()
+    fun saveSession(userId: String) = sessionManager.saveUserId(userId)
+    fun getSessionUserId(): String = sessionManager.getUserId()
     fun clearSession() = sessionManager.clearSession()
-    fun hasSession(): Boolean = getSessionUserId() != -1
+    fun hasSession(): Boolean = getSessionUserId().isNotEmpty()
 
-    suspend fun registerUser(user: User): Result<Int> {
+    suspend fun registerUser(user: User): Result<String> {
         return try {
             // 1. Sync to Supabase first to get a global unique ID
-            val remoteUser = RemoteUser(email = user.email, password = user.password)
+            val remoteUser = RemoteUser(
+                userId = user.userId,
+                email = user.email,
+                password = user.password
+            )
             val registeredRemote = supabaseRepository.insertUser(remoteUser)
                 ?: return Result.failure(Exception("Supabase registration failed"))
             
@@ -59,7 +59,8 @@ class UserRepository(
                     birthday = fromDbDate(remoteProfile.birthday),
                     gender = remoteProfile.gender,
                     height = remoteProfile.height,
-                    liftingExperience = remoteProfile.liftingExperience
+                    liftingExperience = remoteProfile.liftingExperience,
+                    weight = remoteProfile.weight
                 )
                 userProfileDao.insertOrUpdateProfile(profile)
             }
@@ -81,12 +82,13 @@ class UserRepository(
             birthday = toDbDate(profile.birthday),
             gender = profile.gender,
             height = profile.height,
-            liftingExperience = profile.liftingExperience
+            liftingExperience = profile.liftingExperience,
+            weight = profile.weight
         )
         supabaseRepository.upsertProfile(remote)
     }
 
-    suspend fun getProfile(userId: Int): UserProfile? {
+    suspend fun getProfile(userId: String): UserProfile? {
         // 1. Try local
         val local = userProfileDao.getProfileByUserId(userId)
         if (local != null) return local
@@ -100,7 +102,8 @@ class UserRepository(
                 birthday = fromDbDate(remote.birthday),
                 gender = remote.gender,
                 height = remote.height,
-                liftingExperience = remote.liftingExperience
+                liftingExperience = remote.liftingExperience,
+                weight = remote.weight
             )
             userProfileDao.insertOrUpdateProfile(profile)
             return profile
@@ -135,7 +138,7 @@ class UserRepository(
         }
     }
 
-    suspend fun saveWeight(userId: Int, weight: Float, date: String) {
+    suspend fun saveWeight(userId: String, weight: Float, date: String) {
         val existing = weightDao.getWeightForDay(userId, date)
         val record = WeightRecord(
             id = existing?.id ?: 0,
@@ -144,9 +147,21 @@ class UserRepository(
             weight = weight
         )
         weightDao.insertOrUpdateWeight(record)
+        
+        // Sync to remote
+        supabaseRepository.saveWeightRecord(
+            com.xxx.carelorie.data.remote.RemoteWeightRecord(userId, weight, date)
+        )
+        
+        // Update profile weight for consistency in UI
+        val profile = userProfileDao.getProfileByUserId(userId)
+        if (profile != null) {
+            val updatedProfile = profile.copy(weight = weight.toString())
+            saveProfile(updatedProfile)
+        }
     }
 
-    suspend fun getWeightHistory(userId: Int): List<WeightRecord> {
+    suspend fun getWeightHistory(userId: String): List<WeightRecord> {
         return weightDao.getAllWeightRecords(userId)
     }
 }

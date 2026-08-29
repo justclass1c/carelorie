@@ -21,7 +21,7 @@ interface FoodLogDao {
         ORDER BY loggedAt ASC
         """
     )
-    fun observeForDate(userId: Int, date: String): Flow<List<FoodLogEntity>>
+    fun observeForDate(userId: String, date: String): Flow<List<FoodLogEntity>>
 
     @Query(
         """
@@ -30,7 +30,7 @@ interface FoodLogDao {
         ORDER BY loggedAt ASC
         """
     )
-    fun observeBetween(userId: Int, start: String, end: String): Flow<List<FoodLogEntity>>
+    fun observeBetween(userId: String, start: String, end: String): Flow<List<FoodLogEntity>>
 
     /** Distinct days that have at least one entry — drives the calendar dots. */
     @Query(
@@ -40,7 +40,7 @@ interface FoodLogDao {
         ORDER BY logDate ASC
         """
     )
-    fun observeLoggedDates(userId: Int): Flow<List<String>>
+    fun observeLoggedDates(userId: String): Flow<List<String>>
 
     @Query(
         """
@@ -49,7 +49,7 @@ interface FoodLogDao {
         ORDER BY loggedAt ASC
         """
     )
-    suspend fun getFrom(userId: Int, from: String): List<FoodLogEntity>
+    suspend fun getFrom(userId: String, from: String): List<FoodLogEntity>
 
     @Query("SELECT * FROM food_log_entries WHERE isSynced = 0 AND isPendingDelete = 0")
     suspend fun getUnsynced(): List<FoodLogEntity>
@@ -79,5 +79,5 @@ interface FoodLogDao {
         WHERE userId = :userId AND logDate >= :from AND isSynced = 1 AND isPendingDelete = 0
         """
     )
-    suspend fun clearSyncedFrom(userId: Int, from: String)
+    suspend fun clearSyncedFrom(userId: String, from: String)
 }

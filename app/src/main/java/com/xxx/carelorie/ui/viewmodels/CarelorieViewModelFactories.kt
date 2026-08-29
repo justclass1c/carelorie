@@ -56,7 +56,7 @@ object CarelorieViewModelFactories {
         initializer { FoodLogViewModel(container().foodRepository) }
     }
 
-    fun DietChat(userId: Int) = viewModelFactory {
+    fun DietChat(userId: String) = viewModelFactory {
         initializer {
             val c = container()
             DietChatViewModel(c.userRepository, userId)

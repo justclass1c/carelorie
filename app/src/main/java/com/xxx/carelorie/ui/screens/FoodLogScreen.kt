@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -38,7 +39,7 @@ private val DATE_LABEL = DateTimeFormatter.ofPattern("EEE, MMM d")
 @Composable
 fun FoodLogScreen(
     navController: NavController,
-    userId: Int,
+    userId: String,
     viewModel: FoodLogViewModel,
     isWideScreen: Boolean = false
 ) {
@@ -119,6 +120,7 @@ fun FoodLogScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
+                    .statusBarsPadding()
                     .padding(16.dp)
             ) {
                 Text(

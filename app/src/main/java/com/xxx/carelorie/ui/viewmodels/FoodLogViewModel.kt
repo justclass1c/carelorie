@@ -64,12 +64,12 @@ data class FoodLogUiState(
 }
 
 sealed class FoodLogEvent {
-    data class Start(val userId: Int) : FoodLogEvent()
-    data class LoadLogs(val userId: Int, val date: LocalDate) : FoodLogEvent()
-    data class ChangeDate(val userId: Int, val newDate: LocalDate) : FoodLogEvent()
+    data class Start(val userId: String) : FoodLogEvent()
+    data class LoadLogs(val userId: String, val date: LocalDate) : FoodLogEvent()
+    data class ChangeDate(val userId: String, val newDate: LocalDate) : FoodLogEvent()
     data class ChangeMonth(val yearMonth: YearMonth) : FoodLogEvent()
-    data class DeleteLog(val userId: Int, val log: RemoteFoodLog) : FoodLogEvent()
-    data class Refresh(val userId: Int) : FoodLogEvent()
+    data class DeleteLog(val userId: String, val log: RemoteFoodLog) : FoodLogEvent()
+    data class Refresh(val userId: String) : FoodLogEvent()
     object ToggleCalendar : FoodLogEvent()
     object MessageConsumed : FoodLogEvent()
 }
@@ -81,7 +81,7 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
 
     private var logsJob: Job? = null
     private var datesJob: Job? = null
-    private var startedForUser: Int? = null
+    private var startedForUser: String? = null
 
     fun onEvent(event: FoodLogEvent) {
         when (event) {
@@ -102,7 +102,7 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
     }
 
     /** Idempotent — safe to call on every recomposition of the screen. */
-    private fun start(userId: Int) {
+    private fun start(userId: String) {
         if (startedForUser == userId) {
             syncFrom(userId, _uiState.value.selectedDate)
             return
@@ -113,7 +113,7 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
         syncFrom(userId, _uiState.value.selectedDate)
     }
 
-    private fun changeDate(userId: Int, newDate: LocalDate) {
+    private fun changeDate(userId: String, newDate: LocalDate) {
         _uiState.update {
             it.copy(selectedDate = newDate, calendarMonth = YearMonth.from(newDate))
         }
@@ -125,7 +125,7 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
      * Reads from Room, so entries appear with no connection and update the moment
      * anything is added or removed anywhere in the app.
      */
-    private fun observeLogs(userId: Int, date: LocalDate) {
+    private fun observeLogs(userId: String, date: LocalDate) {
         logsJob?.cancel()
         logsJob = viewModelScope.launch {
             foodRepository.observeLogsForDate(userId, date).collect { logs ->
@@ -134,7 +134,7 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
         }
     }
 
-    private fun observeLoggedDates(userId: Int) {
+    private fun observeLoggedDates(userId: String) {
         datesJob?.cancel()
         datesJob = viewModelScope.launch {
             foodRepository.observeLoggedDates(userId).collect { dates ->
@@ -143,7 +143,7 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
         }
     }
 
-    private fun syncFrom(userId: Int, date: LocalDate) {
+    private fun syncFrom(userId: String, date: LocalDate) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             // Pull the whole surrounding month so calendar markers stay accurate.
@@ -155,7 +155,7 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
         }
     }
 
-    private fun deleteLog(userId: Int, log: RemoteFoodLog) {
+    private fun deleteLog(userId: String, log: RemoteFoodLog) {
         viewModelScope.launch {
             val removed = foodRepository.deleteLog(log)
             _uiState.update {

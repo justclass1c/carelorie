@@ -11,15 +11,15 @@ class SessionManager(context: Context) {
         private const val KEY_REMEMBER_ME = "remember_me"
     }
 
-    fun saveUserId(userId: Int, rememberMe: Boolean = true) {
+    fun saveUserId(userId: String, rememberMe: Boolean = true) {
         prefs.edit()
-            .putInt(KEY_USER_ID, userId)
+            .putString(KEY_USER_ID, userId)
             .putBoolean(KEY_REMEMBER_ME, rememberMe)
             .apply()
     }
 
-    fun getUserId(): Int {
-        return prefs.getInt(KEY_USER_ID, -1)
+    fun getUserId(): String {
+        return prefs.getString(KEY_USER_ID, "") ?: ""
     }
 
     fun isRememberMe(): Boolean {

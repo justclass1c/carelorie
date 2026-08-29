@@ -1,6 +1,7 @@
 package com.xxx.carelorie.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,7 +25,7 @@ import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 fun RegisterScreen(
     navController: NavController, 
     viewModel: AuthViewModel,
-    onRegisterSuccess: (Int) -> Unit
+    onRegisterSuccess: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -49,6 +50,7 @@ fun RegisterScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
+            .statusBarsPadding()
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

@@ -34,7 +34,7 @@ import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 @Composable
 fun ReviewFoodsScreen(
     navController: NavController,
-    userId: Int,
+    userId: String,
     viewModel: FoodSearchViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()

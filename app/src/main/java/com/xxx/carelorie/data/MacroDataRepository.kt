@@ -22,7 +22,7 @@ class MacroDataRepository(private val remoteRepository: SupabaseRepository) {
      * Returns an empty list when there is nothing to show. It deliberately does NOT invent
      * placeholder values — a chart full of random numbers is indistinguishable from a bug.
      */
-    suspend fun fetchWeeklyMacroIntake(userId: Int): List<DailyMacroIntake> {
+    suspend fun fetchWeeklyMacroIntake(userId: String): List<DailyMacroIntake> {
         return try {
             remoteRepository.fetchWeeklyMacros(userId).map {
                 DailyMacroIntake(
@@ -38,7 +38,7 @@ class MacroDataRepository(private val remoteRepository: SupabaseRepository) {
         }
     }
 
-    suspend fun syncDailyMacros(userId: Int, intake: DailyMacroIntake) {
+    suspend fun syncDailyMacros(userId: String, intake: DailyMacroIntake) {
         val remote = RemoteMacroIntake(
             userId = userId,
             date = intake.date.toString(),

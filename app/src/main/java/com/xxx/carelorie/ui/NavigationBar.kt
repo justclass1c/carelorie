@@ -153,7 +153,6 @@ fun BottomNavBar(
                     .weight(1f)
                     .fillMaxHeight()
                     .padding(
-                        top = contentPadding.calculateTopPadding(),
                         bottom = contentPadding.calculateBottomPadding(),
                         // Only apply the Scaffold's side padding if the rail ISN'T there.
                         // This prevents the "too much left margin" issue in landscape.

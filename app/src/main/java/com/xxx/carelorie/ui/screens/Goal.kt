@@ -1,6 +1,7 @@
 package com.xxx.carelorie.ui.screens
 
 import android.content.res.Configuration
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,7 +41,7 @@ import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
 import java.time.YearMonth
 
 @Composable
-fun GoalScreen(navController: NavController, userId: Int, viewModel: DashboardViewModel) {
+fun GoalScreen(navController: NavController, userId: String, viewModel: DashboardViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val configuration = LocalConfiguration.current
@@ -75,6 +76,7 @@ fun GoalScreen(navController: NavController, userId: Int, viewModel: DashboardVi
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally

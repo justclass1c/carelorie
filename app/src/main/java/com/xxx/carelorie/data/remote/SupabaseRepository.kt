@@ -19,22 +19,14 @@ class SupabaseRepository {
         }
     }
 
-    suspend fun fetchWeeklyMacros(userId: Int): List<RemoteMacroIntake> = withContext(Dispatchers.IO) {
-        try {
-            supabase.postgrest["macros"]
-                .select {
-                    filter {
-                        eq("userId", userId)
-                    }
+    suspend fun fetchWeeklyMacros(userId: String): List<RemoteMacroIntake> = withContext(Dispatchers.IO) {
+        supabase.postgrest["macros"]
+            .select {
+                filter {
+                    eq("userId", userId)
                 }
-                .decodeList<RemoteMacroIntake>()
-        } catch (e: PostgrestRestException) {
-            Log.e("SupabaseRepository", "Postgrest error fetching weekly macros: ${e.description} (Code: ${e.code})", e)
-            emptyList()
-        } catch (e: Exception) {
-            Log.e("SupabaseRepository", "Error fetching weekly macros", e)
-            emptyList()
-        }
+            }
+            .decodeList<RemoteMacroIntake>()
     }
 
     suspend fun addFoodLog(entry: RemoteFoodLog): RemoteFoodLog? = withContext(Dispatchers.IO) {
@@ -68,7 +60,7 @@ class SupabaseRepository {
         }
     }
 
-    suspend fun fetchFoodLogs(userId: Int, date: String): List<RemoteFoodLog> = withContext(Dispatchers.IO) {
+    suspend fun fetchFoodLogs(userId: String, date: String): List<RemoteFoodLog> = withContext(Dispatchers.IO) {
         try {
             supabase.postgrest["food_logs"]
                 .select {
@@ -87,26 +79,18 @@ class SupabaseRepository {
         }
     }
 
-    suspend fun fetchFoodLogsRange(userId: Int, startDate: String): List<RemoteFoodLog> = withContext(Dispatchers.IO) {
-        try {
-            supabase.postgrest["food_logs"]
-                .select {
-                    filter {
-                        eq("userId", userId)
-                        gte("createdAt", startDate)
-                    }
+    suspend fun fetchFoodLogsRange(userId: String, startDate: String): List<RemoteFoodLog> = withContext(Dispatchers.IO) {
+        supabase.postgrest["food_logs"]
+            .select {
+                filter {
+                    eq("userId", userId)
+                    gte("createdAt", startDate)
                 }
-                .decodeList<RemoteFoodLog>()
-        } catch (e: PostgrestRestException) {
-            Log.e("SupabaseRepository", "Postgrest error fetching food logs range: ${e.description} (Code: ${e.code})", e)
-            emptyList()
-        } catch (e: Exception) {
-            Log.e("SupabaseRepository", "Error fetching food logs range", e)
-            emptyList()
-        }
+            }
+            .decodeList<RemoteFoodLog>()
     }
 
-    suspend fun fetchFoodPresets(userId: Int): List<RemoteFoodPreset> = withContext(Dispatchers.IO) {
+    suspend fun fetchFoodPresets(userId: String): List<RemoteFoodPreset> = withContext(Dispatchers.IO) {
         try {
             // Fetch user presets and system presets separately to avoid complex null-filter syntax issues
             val userPresets = try {
@@ -200,7 +184,7 @@ class SupabaseRepository {
         }
     }
 
-    suspend fun fetchProfile(userId: Int): RemoteUserProfile? = withContext(Dispatchers.IO) {
+    suspend fun fetchProfile(userId: String): RemoteUserProfile? = withContext(Dispatchers.IO) {
         try {
             supabase.postgrest["profiles"]
                 .select {
@@ -215,6 +199,27 @@ class SupabaseRepository {
         } catch (e: Exception) {
             Log.e("SupabaseRepository", "Error fetching profile", e)
             null
+        }
+    }
+
+    suspend fun saveWeightRecord(record: RemoteWeightRecord) = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["weight_records"].upsert(record)
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error saving weight record", e)
+        }
+    }
+
+    suspend fun fetchWeightRecords(userId: String): List<RemoteWeightRecord> = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["weight_records"]
+                .select {
+                    filter { eq("userId", userId) }
+                }
+                .decodeList<RemoteWeightRecord>()
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error fetching weight records", e)
+            emptyList()
         }
     }
 }

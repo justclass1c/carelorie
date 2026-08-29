@@ -2,6 +2,7 @@ package com.xxx.carelorie.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,7 +25,7 @@ import com.xxx.carelorie.ui.viewmodels.ProfileUiEvent
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
 @Composable
-fun Profile(navController: NavController, userId: Int, viewModel: ProfileViewModel, isOnboarding: Boolean = false) {
+fun Profile(navController: NavController, userId: String, viewModel: ProfileViewModel, isOnboarding: Boolean = false) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
@@ -51,6 +52,7 @@ fun Profile(navController: NavController, userId: Int, viewModel: ProfileViewMod
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Top,
@@ -72,7 +74,7 @@ fun Profile(navController: NavController, userId: Int, viewModel: ProfileViewMod
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Profile (ID: ${com.xxx.carelorie.data.UserRepository.formatUserId(uiState.userId)})",
+                    text = "Profile (ID: ${uiState.userId.take(8)}...)",
                     style = MaterialTheme.typography.headlineSmall
                 )
 
@@ -176,6 +178,8 @@ fun ProfileViewSection(uiState: com.xxx.carelorie.ui.viewmodels.ProfileUiState) 
         HorizontalDivider(Modifier.padding(vertical = 15.dp))
         ProfileInfoRow(label = "Height", value = if (uiState.height.isNotEmpty()) "${uiState.height} cm" else "")
         HorizontalDivider(Modifier.padding(vertical = 15.dp))
+        ProfileInfoRow(label = "Weight", value = if (uiState.weight.isNotEmpty()) "${uiState.weight} kg" else "")
+        HorizontalDivider(Modifier.padding(vertical = 15.dp))
         ProfileInfoRow(label = "Lifting Experience", value = if (uiState.liftingExperience.isNotEmpty()) "${uiState.liftingExperience} years" else "")
     }
 }
@@ -221,6 +225,12 @@ fun ProfileEditSection(
             value = uiState.height,
             onValueChange = { onEvent(ProfileUiEvent.HeightChanged(it)) },
             label = { Text("Height (cm)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.weight,
+            onValueChange = { onEvent(ProfileUiEvent.WeightChanged(it)) },
+            label = { Text("Weight (kg)") },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(

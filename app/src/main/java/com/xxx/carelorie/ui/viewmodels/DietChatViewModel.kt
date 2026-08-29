@@ -39,7 +39,7 @@ data class DietChatUiState(
 
 class DietChatViewModel(
     private val userRepository: UserRepository,
-    private val userId: Int
+    private val userId: String
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DietChatUiState())
