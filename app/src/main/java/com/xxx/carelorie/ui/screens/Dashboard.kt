@@ -92,10 +92,11 @@ fun Dashboard(
         return
     }
 
-    if (uiState.error != null) {
+    val error = uiState.error
+    if (error != null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(uiState.error!!, color = MaterialTheme.colorScheme.error)
+                Text(error, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { viewModel.onEvent(DashboardEvent.LoadData(userId)) }) {
                     Text("Try again")
@@ -137,7 +138,7 @@ fun Dashboard(
             ) {
                 if (!wide) {
                     // Phone Layout: Vertical stack
-                    ProgressPreview(weeklyData = uiState.weeklyIntake)
+                    ProgressPreview(weeklyData = uiState.weeklyIntake, targets = uiState.targets)
 
                     Spacer(Modifier.height(20.dp))
 
@@ -154,6 +155,7 @@ fun Dashboard(
                         // Left: Calendar Chart (Sets the height)
                         ProgressPreview(
                             weeklyData = uiState.weeklyIntake,
+                            targets = uiState.targets,
                             modifier = Modifier.weight(0.5f)
                         )
 
@@ -190,7 +192,7 @@ fun Dashboard(
                 MealSection(
                     todayLogs = uiState.todayLogs,
                     onAddMealClick = { mealType ->
-                        navController.navigate("foodSearch/$mealType")
+                        navController.navigate(Routes.foodSearch(mealType))
                     },
                     onDeleteLog = { log ->
                         viewModel.onEvent(DashboardEvent.DeleteLog(userId, log))

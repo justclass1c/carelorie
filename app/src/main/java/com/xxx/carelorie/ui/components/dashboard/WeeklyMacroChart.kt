@@ -17,10 +17,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xxx.carelorie.data.DailyMacroIntake
+import com.xxx.carelorie.data.NutritionTargets
 import java.time.LocalDate
 
 @Composable
-fun WeeklyMacroChart(data: List<DailyMacroIntake>, modifier: Modifier = Modifier) {
+fun WeeklyMacroChart(
+    data: List<DailyMacroIntake>,
+    targets: NutritionTargets,
+    modifier: Modifier = Modifier
+) {
+    // Scale to the day the user actually ate most, but never below their own combined target —
+    // so a normal week fills a sensible portion of the bar and a heavy day still fits instead of
+    // clipping. The old fixed 300 g did neither.
+    val targetTotal = targets.proteinGrams + targets.carbsGrams + targets.fatGrams
+    val busiestDay = data.maxOfOrNull { it.protein + it.carbs + it.fat } ?: 0f
+    val chartMax = maxOf(targetTotal, busiestDay, 1f)
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -45,7 +57,7 @@ fun WeeklyMacroChart(data: List<DailyMacroIntake>, modifier: Modifier = Modifier
             if (data.isNotEmpty()) {
                 data.forEach { intake ->
                     val isToday = intake.date == today
-                    DayBarColumn(intake = intake, isToday = isToday)
+                    DayBarColumn(intake = intake, isToday = isToday, chartMax = chartMax)
                 }
             } else {
                 Text(
@@ -59,7 +71,7 @@ fun WeeklyMacroChart(data: List<DailyMacroIntake>, modifier: Modifier = Modifier
 }
 
 @Composable
-fun DayBarColumn(intake: DailyMacroIntake, isToday: Boolean) {
+fun DayBarColumn(intake: DailyMacroIntake, isToday: Boolean, chartMax: Float) {
     val proteinColor = Color(0xFFE91E63) // Pink
     val carbsColor = Color(0xFF2196F3)   // Blue
     val fatColor = Color(0xFF4CAF50)     // Green
@@ -77,8 +89,7 @@ fun DayBarColumn(intake: DailyMacroIntake, isToday: Boolean) {
                 .border(BorderStroke(1.dp, borderColor))
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val total = 300f // Assume max 300g for visualization scaling
-                val scale = size.height / total
+                val scale = size.height / chartMax
                 
                 val pHeight = intake.protein * scale
                 val cHeight = intake.carbs * scale

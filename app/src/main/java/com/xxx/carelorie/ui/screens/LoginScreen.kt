@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.xxx.carelorie.Routes
 import com.xxx.carelorie.ui.layout.constrainedWidth
 import com.xxx.carelorie.ui.theme.CarelorieTheme
 import com.xxx.carelorie.ui.viewmodels.AuthUiEvent
@@ -117,7 +118,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
             horizontalArrangement = Arrangement.Center
         ) {
             Button(
-                onClick = { navController.navigate("register") },
+                onClick = { navController.navigate(Routes.REGISTER) },
                 shape = RoundedCornerShape(20.dp),
                 contentPadding = PaddingValues(vertical = 12.dp, horizontal = 36.dp),
             ) {

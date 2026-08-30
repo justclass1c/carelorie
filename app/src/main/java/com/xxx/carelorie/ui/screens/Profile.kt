@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
+import com.xxx.carelorie.Routes
 import com.xxx.carelorie.data.ThemeManager
 import com.xxx.carelorie.ui.layout.ContentWidth
 import com.xxx.carelorie.ui.layout.constrainedWidth
@@ -75,10 +76,21 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
 
     LaunchedEffect(uiState.isLoggedOut) {
         if (uiState.isLoggedOut) {
-            navController.navigate("login") {
+            navController.navigate(Routes.LOGIN) {
                 popUpTo(0)
             }
         }
+    }
+
+    LaunchedEffect(uiState.isSaveSuccess) {
+        if (!uiState.isSaveSuccess) return@LaunchedEffect
+        if (isOnboarding) {
+            // Finish the sign-up flow instead of leaving the new user parked on this form with
+            // no sign that they were done. popUpTo(0) so back cannot return to onboarding.
+            navController.navigate(Routes.DASHBOARD) { popUpTo(0) }
+        }
+        // Consume it either way, so an ordinary profile edit doesn't leave the flag set.
+        viewModel.onEvent(ProfileUiEvent.ResetSaveStatus)
     }
 
     // Expanded windows have room to show Personal and Macros at once, so the tab row only

@@ -169,13 +169,13 @@ fun DietChatScreen(navController: NavController, viewModel: DietChatViewModel) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (uiState.error != null) {
+            uiState.error?.let { error ->
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = uiState.error!!,
+                        text = error,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         modifier = Modifier.padding(8.dp),
                         style = MaterialTheme.typography.bodySmall

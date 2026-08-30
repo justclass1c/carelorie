@@ -63,16 +63,20 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
         }
     }
 
+    // Read once and branch on the local: checking the state and then re-reading it with !!
+    // could throw if the error cleared between the two reads.
+    val loadError = uiState.error
+
     if (uiState.isLoading && uiState.weightHistory.isEmpty() && uiState.trackedDates.isEmpty()) {
         // Show only the loading indicator while the initial data load is in progress.
         // The navigation bar is rendered by the shell outside this screen.
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-    } else if (uiState.error != null) {
+    } else if (loadError != null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(uiState.error!!, color = MaterialTheme.colorScheme.error)
+                Text(loadError, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { viewModel.onEvent(DashboardEvent.LoadData(userId)) }) {
                     Text("Retry")

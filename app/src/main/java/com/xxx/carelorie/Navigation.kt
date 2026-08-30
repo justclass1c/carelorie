@@ -147,20 +147,24 @@ fun AppNavigation(
 
         composable("${Routes.FOOD_SEARCH}/{mealType}") { backStackEntry ->
             val mealType = backStackEntry.arguments?.getString("mealType") ?: "Breakfast"
-            FoodSearchScreen(
-                navController = navController,
-                userId = currentUserId,
-                mealType = mealType,
-                viewModel = foodSearchViewModel
-            )
+            RequireUser(currentUserId, navController) { userId ->
+                FoodSearchScreen(
+                    navController = navController,
+                    userId = userId,
+                    mealType = mealType,
+                    viewModel = foodSearchViewModel
+                )
+            }
         }
 
         composable(Routes.REVIEW_FOODS) {
-            ReviewFoodsScreen(
-                navController = navController,
-                userId = currentUserId,
-                viewModel = foodSearchViewModel
-            )
+            RequireUser(currentUserId, navController) { userId ->
+                ReviewFoodsScreen(
+                    navController = navController,
+                    userId = userId,
+                    viewModel = foodSearchViewModel
+                )
+            }
         }
 
         composable(
