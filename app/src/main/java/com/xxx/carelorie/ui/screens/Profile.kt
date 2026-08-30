@@ -8,8 +8,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
@@ -17,9 +15,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.xxx.carelorie.ui.viewmodels.ProfileUiEvent
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
@@ -28,9 +29,33 @@ import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 fun Profile(navController: NavController, userId: String, viewModel: ProfileViewModel, isOnboarding: Boolean = false) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(userId) {
         viewModel.onEvent(ProfileUiEvent.LoadProfile(userId, isOnboarding))
+    }
+
+    // Cancel any unsaved edits when the user leaves the profile screen, when the app resumes
+    // this screen, or when the screen is recomposed (e.g., navigation back/rotation).
+    // This prevents half-edited data from surviving navigation and ensures the profile is
+    // reloaded from the latest source when the user comes back. Onboarding keeps edit mode.
+    DisposableEffect(lifecycleOwner, userId, isOnboarding) {
+        if (!isOnboarding) {
+            viewModel.onEvent(ProfileUiEvent.CancelEdit(userId))
+        }
+
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !isOnboarding) {
+                viewModel.onEvent(ProfileUiEvent.CancelEdit(userId))
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (!isOnboarding) {
+                viewModel.onEvent(ProfileUiEvent.CancelEdit(userId))
+            }
+        }
     }
 
     LaunchedEffect(uiState.errorMessage) {
@@ -148,21 +173,6 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                     Text("Logout")
                 }
             }
-        }
-
-        // AI Chat Floating Button
-        FloatingActionButton(
-            onClick = { navController.navigate("dietChat") },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        ) {
-            Icon(
-                imageVector = Icons.Default.Info,
-                contentDescription = "AI Diet Advice"
-            )
         }
     }
 }

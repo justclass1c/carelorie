@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,7 +63,13 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
         }
     }
 
-    if (uiState.error != null) {
+    if (uiState.isLoading && uiState.weightHistory.isEmpty() && uiState.trackedDates.isEmpty()) {
+        // Show only the loading indicator while the initial data load is in progress.
+        // The navigation bar is rendered by the shell outside this screen.
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (uiState.error != null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(uiState.error!!, color = MaterialTheme.colorScheme.error)

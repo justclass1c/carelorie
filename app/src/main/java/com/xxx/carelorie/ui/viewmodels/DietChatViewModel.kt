@@ -101,12 +101,13 @@ class DietChatViewModel(
     private fun generateAiResponse(history: List<ChatMessage>) {
         viewModelScope.launch {
             try {
-                // Fetch profile for personalization
+                // Fetch profile and weight history for personalization
                 val profile = userRepository.getProfile(userId)
-                
+                val weightHistory = userRepository.getWeightHistory(userId)
+
                 // Use the last user message as the prompt, but we could send full history
                 val lastUserMessage = history.lastOrNull { it.isUser }?.text ?: ""
-                val response = callDeepSeek(lastUserMessage, profile)
+                val response = callDeepSeek(lastUserMessage, profile, weightHistory)
                 
                 _uiState.update { 
                     it.copy(
@@ -126,7 +127,10 @@ class DietChatViewModel(
         }
     }
 
-    private suspend fun callDeepSeek(prompt: String, profile: com.xxx.carelorie.data.UserProfile?): String = withContext(Dispatchers.IO) {
+    private fun formatWeight(weight: Float): String =
+        if (weight == weight.toInt().toFloat()) weight.toInt().toString() else weight.toString()
+
+    private suspend fun callDeepSeek(prompt: String, profile: com.xxx.carelorie.data.UserProfile?, weightHistory: List<com.xxx.carelorie.data.WeightRecord>): String = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext "I'm sorry, I can't provide advice right now as the AI service is not configured."
 
         val url = "https://api.deepseek.com/chat/completions"
@@ -139,7 +143,13 @@ class DietChatViewModel(
                 if (profile.gender.isNotEmpty()) append("Gender: ${profile.gender}. ")
                 if (profile.height.isNotEmpty()) append("Height: ${profile.height} cm. ")
                 if (profile.liftingExperience.isNotEmpty()) append("Fitness experience: ${profile.liftingExperience} years. ")
+                profile.weight?.let { append("Current weight: ${formatWeight(it)} kg. ") }
                 append("Address the user by name occasionally and tailor your advice to their physical profile.")
+            }
+            if (weightHistory.isNotEmpty()) {
+                append("The user's weight growth chart shows these records (date -> weight in kg): ")
+                append(weightHistory.joinToString("; ") { "${it.date} -> ${formatWeight(it.weight)}" })
+                append(". Consider this trend when giving advice. ")
             }
         }
         

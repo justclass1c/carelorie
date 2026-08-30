@@ -17,10 +17,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -36,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
+import com.xxx.carelorie.Routes
 import com.xxx.carelorie.ui.components.dashboard.MacroCard
 import com.xxx.carelorie.ui.components.dashboard.MacroRow
 import com.xxx.carelorie.ui.components.dashboard.MealSection
@@ -75,6 +81,15 @@ fun Dashboard(
             snackbarHostState.showSnackbar(it)
             viewModel.onEvent(DashboardEvent.MessageConsumed)
         }
+    }
+
+    if (uiState.isLoading && uiState.todayLogs.isEmpty() && uiState.monthlyIntake.isEmpty()) {
+        // Show only the loading indicator while the initial data load is in progress.
+        // The navigation bar is rendered by the shell outside this screen.
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
     }
 
     if (uiState.error != null) {
@@ -156,15 +171,15 @@ fun Dashboard(
                                 modifier = Modifier.weight(1f),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                MacroCard("Protein", uiState.todayIntake?.protein?.toInt() ?: 0, 120, Modifier.fillMaxHeight().aspectRatio(1f))
-                                MacroCard("Carbs", uiState.todayIntake?.carbs?.toInt() ?: 0, 200, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Protein", uiState.todayIntake.protein.toInt(), 120, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Carbs", uiState.todayIntake.carbs.toInt(), 200, Modifier.fillMaxHeight().aspectRatio(1f))
                             }
                             Row(
                                 modifier = Modifier.weight(1f),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                MacroCard("Fat", uiState.todayIntake?.fat?.toInt() ?: 0, 50, Modifier.fillMaxHeight().aspectRatio(1f))
-                                MacroCard("Calories", uiState.todayIntake?.calories ?: 0, 1700, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Fat", uiState.todayIntake.fat.toInt(), 50, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Calories", uiState.todayIntake.calories, 1700, Modifier.fillMaxHeight().aspectRatio(1f))
                             }
                         }
                     }
@@ -191,5 +206,20 @@ fun Dashboard(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+
+        // AI Diet Assistant
+        FloatingActionButton(
+            onClick = { navController.navigate(Routes.DIET_CHAT) },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        ) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = "AI Diet Advice"
+            )
+        }
     }
 }

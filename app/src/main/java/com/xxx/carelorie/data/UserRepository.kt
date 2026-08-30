@@ -2,7 +2,9 @@ package com.xxx.carelorie.data
 
 import com.xxx.carelorie.data.remote.RemoteUser
 import com.xxx.carelorie.data.remote.RemoteUserProfile
+import com.xxx.carelorie.data.remote.RemoteWeightRecord
 import com.xxx.carelorie.data.remote.SupabaseRepository
+import java.time.LocalDate
 
 class UserRepository(
     private val userDao: UserDao,
@@ -79,26 +81,42 @@ class UserRepository(
     }
 
     suspend fun saveProfile(profile: UserProfile) {
+        val existing = userProfileDao.getProfileByUserId(profile.userId)
+
         // 1. Save locally
         userProfileDao.insertOrUpdateProfile(profile)
-        
+
         // 2. Sync to remote
-        val remote = RemoteUserProfile(
-            userId = profile.userId,
-            name = profile.name,
-            birthday = toDbDate(profile.birthday),
-            gender = profile.gender,
-            height = profile.height,
-            liftingExperience = profile.liftingExperience,
-            weight = profile.weight
-        )
-        supabaseRepository.upsertProfile(remote)
+        supabaseRepository.upsertProfile(toRemoteProfile(profile))
+
+        // 3. If the weight changed here (profile page), record it in the weight table
+        //    so the graph on the goal page stays up to date no matter where it was edited.
+        val newWeight = profile.weight
+        if (newWeight != null && newWeight != existing?.weight) {
+            saveWeight(profile.userId, newWeight, LocalDate.now().toString())
+        }
     }
+
+    private fun toRemoteProfile(profile: UserProfile): RemoteUserProfile = RemoteUserProfile(
+        userId = profile.userId,
+        name = profile.name,
+        birthday = toDbDate(profile.birthday),
+        gender = profile.gender,
+        height = profile.height,
+        liftingExperience = profile.liftingExperience,
+        weight = profile.weight
+    )
 
     suspend fun getProfile(userId: String): UserProfile? {
         // Sync with remote first if possible to ensure we have latest data
         syncProfileWithRemote(userId)
-        return userProfileDao.getProfileByUserId(userId)
+        val profile = userProfileDao.getProfileByUserId(userId) ?: return null
+
+        // Display the weight from the most recent date in the weight history.
+        val latestWeight = weightDao.getAllWeightRecords(userId)
+            .maxByOrNull { it.date }
+            ?.weight
+        return if (latestWeight != null) profile.copy(weight = latestWeight) else profile
     }
 
     /** Converts dd/mm/yyyy to YYYY-MM-DD for Supabase 'date' type */
@@ -128,6 +146,8 @@ class UserRepository(
     }
 
     suspend fun saveWeight(userId: String, weight: Float, date: String) {
+        // 1. Upsert locally — same-day updates replace the existing record instead of
+        //    creating a new one.
         val existing = weightDao.getWeightForDay(userId, date)
         val record = WeightRecord(
             id = existing?.id ?: 0,
@@ -136,22 +156,43 @@ class UserRepository(
             weight = weight
         )
         weightDao.insertOrUpdateWeight(record)
-        
-        // Sync to remote
-        supabaseRepository.saveWeightRecord(
-            com.xxx.carelorie.data.remote.RemoteWeightRecord(userId, weight, date)
-        )
-        
-        // Update profile weight for consistency in UI. 
-        // We fetch the latest profile (syncing from remote if needed) to avoid overwriting fields.
+
+        // 2. Upsert to the remote `weight` table (keyed by userId + date).
+        supabaseRepository.saveWeightRecord(RemoteWeightRecord(userId = userId, weight = weight, date = date))
+
+        // 3. Keep the profile's "current" weight in sync so the profile page always shows
+        //    the latest updated weight.
+        updateProfileWeight(userId, weight)
+    }
+
+    private suspend fun updateProfileWeight(userId: String, weight: Float) {
         val profile = getProfile(userId)
-        if (profile != null) {
-            val updatedProfile = profile.copy(weight = weight.toString())
-            saveProfile(updatedProfile)
+        if (profile != null && profile.weight != weight) {
+            val updated = profile.copy(weight = weight)
+            userProfileDao.insertOrUpdateProfile(updated)
+            supabaseRepository.upsertProfile(toRemoteProfile(updated))
         }
     }
 
     suspend fun getWeightHistory(userId: String): List<WeightRecord> {
+        // Sync remote records into the local cache first so the graph reflects weight
+        // entries made on any screen or device.
+        try {
+            val remote = supabaseRepository.fetchWeightRecords(userId)
+            for (r in remote) {
+                val existing = weightDao.getWeightForDay(userId, r.date)
+                weightDao.insertOrUpdateWeight(
+                    WeightRecord(
+                        id = existing?.id ?: 0,
+                        userId = userId,
+                        date = r.date,
+                        weight = r.weight
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            // Offline: fall back to local cache
+        }
         return weightDao.getAllWeightRecords(userId)
     }
 }

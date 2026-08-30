@@ -37,6 +37,7 @@ sealed class ProfileUiEvent {
     data class HeightChanged(val height: String) : ProfileUiEvent()
     data class WeightChanged(val weight: String) : ProfileUiEvent()
     data class ExperienceChanged(val experience: String) : ProfileUiEvent()
+    data class CancelEdit(val userId: String) : ProfileUiEvent()
     object ToggleEditMode : ProfileUiEvent()
     object SaveProfile : ProfileUiEvent()
     object Logout : ProfileUiEvent()
@@ -61,6 +62,7 @@ class ProfileViewModel(
             is ProfileUiEvent.HeightChanged -> _uiState.update { it.copy(height = event.height) }
             is ProfileUiEvent.WeightChanged -> _uiState.update { it.copy(weight = event.weight) }
             is ProfileUiEvent.ExperienceChanged -> _uiState.update { it.copy(liftingExperience = event.experience) }
+            is ProfileUiEvent.CancelEdit -> cancelEdit(event.userId)
             is ProfileUiEvent.ToggleEditMode -> _uiState.update { it.copy(isEditMode = !it.isEditMode) }
             is ProfileUiEvent.SaveProfile -> saveProfile()
             is ProfileUiEvent.Logout -> logout()
@@ -85,7 +87,7 @@ class ProfileViewModel(
                         birthday = profile.birthday,
                         gender = profile.gender,
                         height = profile.height,
-                        weight = profile.weight,
+                        weight = profile.weight?.toString() ?: "",
                         liftingExperience = profile.liftingExperience,
                         isLoading = false,
                         isEditMode = if (isOnboarding) true else it.isEditMode
@@ -95,6 +97,12 @@ class ProfileViewModel(
                 _uiState.update { it.copy(isLoading = false, isEditMode = true) }
             }
         }
+    }
+
+    private fun cancelEdit(userId: String) {
+        // Exit edit mode and reload the saved profile so any unsaved changes are discarded.
+        _uiState.update { it.copy(isEditMode = false) }
+        loadProfile(userId, isOnboarding = false)
     }
 
     private val birthdayPattern = Pattern.compile("^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])/(19|20)\\d{2}$")
@@ -144,7 +152,7 @@ class ProfileViewModel(
                 birthday = state.birthday,
                 gender = state.gender,
                 height = state.height,
-                weight = state.weight,
+                weight = state.weight.toFloatOrNull(),
                 liftingExperience = state.liftingExperience
             )
             repository.saveProfile(profile)

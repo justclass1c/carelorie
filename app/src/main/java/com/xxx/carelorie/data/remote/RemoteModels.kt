@@ -61,11 +61,13 @@ data class RemoteUserProfile(
     val gender: String = "",
     val height: String = "",
     val liftingExperience: String = "",
-    val weight: String = ""
+    val weight: Float? = null
 )
 
 @Serializable
 data class RemoteWeightRecord(
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val id: Long? = null,
     val userId: String,
     val weight: Float,
     val date: String

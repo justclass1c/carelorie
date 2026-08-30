@@ -204,7 +204,11 @@ class SupabaseRepository {
 
     suspend fun saveWeightRecord(record: RemoteWeightRecord) = withContext(Dispatchers.IO) {
         try {
-            supabase.postgrest["weight_records"].upsert(record)
+            // Upsert on (userId, date) so updating weight multiple times in the same day
+            // modifies the existing row instead of creating duplicates.
+            supabase.postgrest["weight"].upsert(record) {
+                onConflict = "userId,date"
+            }
         } catch (e: Exception) {
             Log.e("SupabaseRepository", "Error saving weight record", e)
         }
@@ -212,7 +216,7 @@ class SupabaseRepository {
 
     suspend fun fetchWeightRecords(userId: String): List<RemoteWeightRecord> = withContext(Dispatchers.IO) {
         try {
-            supabase.postgrest["weight_records"]
+            supabase.postgrest["weight"]
                 .select {
                     filter { eq("userId", userId) }
                 }

@@ -55,6 +55,7 @@ sealed class FoodSearchEvent {
     data class ChangeQuantity(val candidate: FoodCandidate, val quantity: Float) : FoodSearchEvent()
     data class BarcodeScanned(val barcode: String) : FoodSearchEvent()
     data class PhotoCaptured(val imageBase64: String) : FoodSearchEvent()
+    object AiSearch : FoodSearchEvent()
     data class LogSelected(val userId: String) : FoodSearchEvent()
     object SearchOnline : FoodSearchEvent()
     object ClearSelection : FoodSearchEvent()
@@ -85,6 +86,7 @@ class FoodSearchViewModel(
             is FoodSearchEvent.ChangeQuantity -> changeQuantity(event.candidate, event.quantity)
             is FoodSearchEvent.BarcodeScanned -> lookupBarcode(event.barcode)
             is FoodSearchEvent.PhotoCaptured -> analysePhoto(event.imageBase64)
+            is FoodSearchEvent.AiSearch -> aiSearch()
             is FoodSearchEvent.LogSelected -> logSelected(event.userId)
             is FoodSearchEvent.SearchOnline -> searchOnline()
             is FoodSearchEvent.ClearSelection -> _uiState.update { it.copy(selected = emptyMap()) }
@@ -188,32 +190,77 @@ class FoodSearchViewModel(
     private fun analysePhoto(imageBase64: String) {
         viewModelScope.launch {
             _uiState.update { it.copy(isAnalysing = true, mode = SearchMode.AI) }
-            when (val result = recognitionService.recognise(imageBase64)) {
-                is RecognitionResult.Success -> _uiState.update { state ->
-                    state.copy(
-                        results = result.candidates,
-                        // Pre-select everything the model saw; the user unticks what's wrong.
-                        selected = state.selected + result.candidates.associateBy { it.selectionId },
-                        isAnalysing = false,
-                        message = "Found ${result.candidates.size} item(s). Check the amounts before logging."
-                    )
+            handleRecognitionResult(recognitionService.recognise(imageBase64))
+        }
+    }
+
+    private fun aiSearch() {
+        val query = _uiState.value.query
+        if (query.isBlank()) {
+            _uiState.update { it.copy(message = "Type a food name first.") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isAnalysing = true, mode = SearchMode.AI) }
+            
+            // 1. Gather context from online search first
+            val onlineResults = try {
+                openFoodFacts.search(query).take(5)
+            } catch (_: Exception) {
+                emptyList()
+            }
+            
+            val contextText = if (onlineResults.isNotEmpty()) {
+                "Search results from food database:\n" + onlineResults.joinToString("\n") { c ->
+                    "- ${c.preset.name}: ${c.calories}kcal, P:${c.protein}g, C:${c.carbs}g, F:${c.fat}g."
                 }
-                is RecognitionResult.Failure -> _uiState.update {
+            } else "No direct database match found."
+
+            // 2. Ask AI to estimate, giving it the online results as a hint
+            val aiResult = recognitionService.estimateNutrition(query, contextText)
+            
+            // 3. If AI fails but OpenFoodFacts returned matches, show those instead
+            if (aiResult is RecognitionResult.Failure && onlineResults.isNotEmpty()) {
+                _uiState.update {
                     it.copy(
                         isAnalysing = false,
-                        mode = SearchMode.PRESETS,
-                        results = filterPresets(it.presets, it.query),
-                        message = result.reason
+                        mode = SearchMode.ONLINE,
+                        results = onlineResults,
+                        message = "AI couldn't estimate; showing online results for \"$query\"."
                     )
                 }
-                RecognitionResult.NotConfigured -> _uiState.update {
-                    it.copy(
-                        isAnalysing = false,
-                        mode = SearchMode.PRESETS,
-                        results = filterPresets(it.presets, it.query),
-                        message = "Photo recognition isn't set up yet."
-                    )
-                }
+            } else {
+                handleRecognitionResult(aiResult)
+            }
+        }
+    }
+
+    private fun handleRecognitionResult(result: RecognitionResult) {
+        when (result) {
+            is RecognitionResult.Success -> _uiState.update { state ->
+                state.copy(
+                    results = result.candidates,
+                    // Pre-select everything (should be one item for text search)
+                    selected = state.selected + result.candidates.associateBy { it.selectionId },
+                    isAnalysing = false,
+                    message = if (result.candidates.isNotEmpty()) "Found ${result.candidates[0].preset.name}" else null
+                )
+            }
+            is RecognitionResult.Failure -> _uiState.update {
+                it.copy(
+                    isAnalysing = false,
+                    mode = SearchMode.PRESETS,
+                    results = filterPresets(it.presets, it.query),
+                    message = result.reason
+                )
+            }
+            RecognitionResult.NotConfigured -> _uiState.update {
+                it.copy(
+                    isAnalysing = false,
+                    mode = SearchMode.PRESETS,
+                    results = filterPresets(it.presets, it.query),
+                    message = "AI service isn't set up yet."
+                )
             }
         }
     }

@@ -31,6 +31,7 @@ sealed interface RecognitionResult {
  */
 interface FoodRecognitionService {
     suspend fun recognise(imageBase64: String): RecognitionResult
+    suspend fun estimateNutrition(query: String, context: String? = null): RecognitionResult
     val isConfigured: Boolean
 }
 
@@ -50,44 +51,34 @@ class StubFoodRecognitionService : FoodRecognitionService {
                     fiberGrams = 4.2f, sugarGrams = 6f, saturatedFatGrams = 11f,
                     sodiumMilligrams = 890f, source = NutritionSource.AI_ESTIMATE
                 )
-            ),
-            FoodCandidate(
-                RemoteFoodPreset(name = "Fried Egg", calories = 90, protein = 6f, carbs = 0.4f, fat = 7f),
-                NutritionDetail(
-                    servingDescription = "1 egg",
-                    saturatedFatGrams = 2f, sodiumMilligrams = 95f,
-                    cholesterolMilligrams = 186f, source = NutritionSource.AI_ESTIMATE
-                )
-            )
-        ),
-        listOf(
-            FoodCandidate(
-                RemoteFoodPreset(name = "Chicken Rice", calories = 607, protein = 30f, carbs = 75f, fat = 20f),
-                NutritionDetail(
-                    servingDescription = "1 plate (approx. 400 g)",
-                    fiberGrams = 2.1f, sugarGrams = 3f, saturatedFatGrams = 6f,
-                    sodiumMilligrams = 1020f, source = NutritionSource.AI_ESTIMATE
-                )
-            ),
-            FoodCandidate(
-                RemoteFoodPreset(name = "Cucumber Slices", calories = 8, protein = 0.3f, carbs = 1.9f, fat = 0.1f),
-                NutritionDetail(
-                    servingDescription = "about 50 g",
-                    fiberGrams = 0.3f, source = NutritionSource.AI_ESTIMATE
-                )
             )
         )
     )
 
     override suspend fun recognise(imageBase64: String): RecognitionResult {
         delay(1400)
-        val index = if (imageBase64.isEmpty()) 0 else imageBase64.length % sampleMeals.size
-        return RecognitionResult.Success(sampleMeals[index])
+        return RecognitionResult.Success(sampleMeals[0])
+    }
+
+    override suspend fun estimateNutrition(query: String, context: String?): RecognitionResult {
+        delay(1000)
+        val displayName = query.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        return RecognitionResult.Success(
+            listOf(
+                FoodCandidate(
+                    RemoteFoodPreset(name = displayName, calories = 250, protein = 15f, carbs = 30f, fat = 10f),
+                    NutritionDetail(
+                        servingDescription = "Standard portion (Estimated)",
+                        source = NutritionSource.AI_ESTIMATE
+                    )
+                )
+            )
+        )
     }
 }
 
 /**
- * Real implementation, calling DeepSeek's vision endpoint.
+ * Real implementation, calling DeepSeek's chat endpoint.
  */
 class DeepSeekFoodRecognitionService(private val apiKey: String) : FoodRecognitionService {
 
@@ -100,13 +91,33 @@ class DeepSeekFoodRecognitionService(private val apiKey: String) : FoodRecogniti
         const val ENDPOINT = "https://api.deepseek.com/chat/completions"
         const val MODEL = "deepseek-chat"
         const val TIMEOUT_MS = 60_000
-        const val PROMPT = """You are a nutrition estimator. Identify every distinct food item in this photo.
+        const val PROMPT_IMAGE = """You are a nutrition estimator. Identify every distinct food item in this photo.
 Reply with ONLY a JSON array, no markdown fences and no commentary. Each element must be:
 {"name":string,"calories":int,"protein_g":number,"carbs_g":number,"fat_g":number,
 "serving":string,"fiber_g":number|null,"sugar_g":number|null,
 "saturated_fat_g":number|null,"sodium_mg":number|null}
 Estimate for the portion actually visible. If the dish looks Malaysian or Southeast Asian, use
 the local recipe. Return [] if there is no food in the image."""
+
+        const val PROMPT_TEXT = """You are a nutrition estimation API. For the food item specified, estimate its nutritional facts per typical serving.
+
+IMPORTANT: You must ALWAYS return a JSON array containing EXACTLY ONE item, even if you are uncertain. Use your best estimate based on common recipes, USDA food data, and general nutrition knowledge. Do not refuse, apologise, or ask for clarification — just return the estimate.
+
+If online search context is provided, use it as a hint, but prioritise your internal knowledge for regional dishes like Malaysian, Singaporean, or Italian specialties.
+
+Reply with ONLY a JSON array. No conversational text, no markdown fences, and no commentary.
+The element must follow this strict schema:
+{"name":string,"calories":int,"protein_g":number,"carbs_g":number,"fat_g":number,
+"serving":string,"fiber_g":number|null,"sugar_g":number|null,
+"saturated_fat_g":number|null,"sodium_mg":number|null}
+
+Guidelines:
+- Generic foods (e.g., "cake", "apple", "rice", "fried chicken"): provide a typical single serving estimate.
+- Specific dishes (e.g., Pan Mee, Spaghetti Carbonara): provide a typical portion estimate.
+- Pan Mee: Approx 500-600 kcal for a standard bowl.
+- Spaghetti Carbonara: Approx 500-700 kcal for a standard plate.
+- If the exact serving size is unknown, use a reasonable standard (e.g., "1 slice", "1 bowl", "1 plate").
+- Use standard metric measurements (grams/milligrams)."""
     }
 
     override suspend fun recognise(imageBase64: String): RecognitionResult =
@@ -121,7 +132,7 @@ the local recipe. Return [] if there is no food in the image."""
                         putJsonArray("content") {
                             addJsonObject {
                                 put("type", "text")
-                                put("text", PROMPT)
+                                put("text", PROMPT_IMAGE)
                             }
                             addJsonObject {
                                 put("type", "image_url")
@@ -136,65 +147,112 @@ the local recipe. Return [] if there is no food in the image."""
                 put("temperature", 0.2)
             }.toString()
 
-            var connection: HttpURLConnection? = null
-            try {
-                connection = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
-                    requestMethod = "POST"
-                    connectTimeout = TIMEOUT_MS
-                    readTimeout = TIMEOUT_MS
-                    doOutput = true
-                    setRequestProperty("Content-Type", "application/json")
-                    setRequestProperty("Authorization", "Bearer $apiKey")
-                }
-                connection.outputStream.use { it.write(requestBody.toByteArray()) }
-
-                if (connection.responseCode !in 200..299) {
-                    val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
-                    Log.e(TAG, "HTTP ${connection.responseCode}: $error")
-                    
-                    val detailedReason = when(connection.responseCode) {
-                        400 -> "The AI request was malformed. Please try again."
-                        401 -> "Invalid API Key. Check your DeepSeek configuration."
-                        429 -> "Too many requests. Please wait a moment."
-                        else -> "Could not analyse the photo (error ${connection.responseCode})."
-                    }
-                    return@withContext RecognitionResult.Failure(detailedReason)
-                }
-
-                val body = connection.inputStream.bufferedReader().use { it.readText() }
-                val responseJson = json.parseToJsonElement(body).jsonObject
-                val text = responseJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject
-                    ?.get("message")?.jsonObject
-                    ?.get("content")?.jsonPrimitive?.content
-                    ?: return@withContext RecognitionResult.Failure("The response was empty.")
-
-                val candidates = parseCandidates(text)
-                if (candidates.isEmpty()) {
-                    RecognitionResult.Failure("No food was recognised in that photo.")
-                } else {
-                    RecognitionResult.Success(candidates)
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Recognition failed", e)
-                RecognitionResult.Failure("Could not reach DeepSeek. Check your connection.")
-            } finally {
-                connection?.disconnect()
-            }
+            executeRequest(requestBody)
         }
 
+    override suspend fun estimateNutrition(query: String, context: String?): RecognitionResult =
+        withContext(Dispatchers.IO) {
+            if (!isConfigured) return@withContext RecognitionResult.NotConfigured
+
+            val prompt = buildString {
+                append(PROMPT_TEXT)
+                append("\n\nFood: $query")
+                if (!context.isNullOrBlank()) {
+                    append("\n\nHere are some online search results that might help you provide a more accurate estimate:\n")
+                    append(context)
+                }
+                append("\n\nIf you are unsure, provide a standard scientific estimate based on common recipes. For regional dishes like 'Pan Mee', provide a typical bowl estimate (approx 500g).")
+            }
+
+            val requestBody = buildJsonObject {
+                put("model", MODEL)
+                putJsonArray("messages") {
+                    addJsonObject {
+                        put("role", "user")
+                        put("content", prompt)
+                    }
+                }
+                put("max_tokens", 1024)
+                put("temperature", 0.2)
+            }.toString()
+
+            executeRequest(requestBody)
+        }
+
+    private suspend fun executeRequest(requestBody: String): RecognitionResult = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+        try {
+            connection = (URL(ENDPOINT).openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setRequestProperty("Authorization", "Bearer $apiKey")
+            }
+            connection.outputStream.use { it.write(requestBody.toByteArray()) }
+
+            if (connection.responseCode !in 200..299) {
+                val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                Log.e(TAG, "HTTP ${connection.responseCode}: $error")
+                
+                val detailedReason = when(connection.responseCode) {
+                    400 -> "The AI request was malformed. Please try again."
+                    401 -> "Invalid API Key. Check your DeepSeek configuration."
+                    429 -> "Too many requests. Please wait a moment."
+                    else -> "Could not process request (error ${connection.responseCode})."
+                }
+                return@withContext RecognitionResult.Failure(detailedReason)
+            }
+
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val responseJson = try {
+                json.parseToJsonElement(body).jsonObject
+            } catch (_: Exception) {
+                return@withContext RecognitionResult.Failure("Received invalid response from AI.")
+            }
+            
+            val text = responseJson["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+                ?.get("message")?.jsonObject
+                ?.get("content")?.jsonPrimitive?.content
+                ?: return@withContext RecognitionResult.Failure("The AI returned an empty response.")
+
+            Log.d(TAG, "Raw AI response: $text")
+            val candidates = parseCandidates(text)
+            if (candidates.isEmpty()) {
+                Log.w(TAG, "No candidates parsed from: $text")
+                RecognitionResult.Failure("The AI couldn't find nutritional info for that food. Try a more specific name.")
+            } else {
+                RecognitionResult.Success(candidates.take(1)) // Ensure only ONE food
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Request failed", e)
+            RecognitionResult.Failure("Could not reach DeepSeek. Check your connection.")
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
     private fun parseCandidates(raw: String): List<FoodCandidate> {
-        val cleaned = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+        val jsonStart = raw.indexOf('[')
+        val jsonEnd = raw.lastIndexOf(']')
+        if (jsonStart == -1 || jsonEnd == -1 || jsonEnd < jsonStart) {
+            Log.w(TAG, "No JSON array found in response: $raw")
+            return emptyList()
+        }
+        val jsonText = raw.substring(jsonStart, jsonEnd + 1)
+        
         return try {
-            val element = json.parseToJsonElement(cleaned)
+            val element = json.parseToJsonElement(jsonText)
             if (element !is JsonArray) {
-                Log.w(TAG, "Expected JSON array but got: $cleaned")
+                Log.w(TAG, "Expected JSON array but got: $jsonText")
                 return emptyList()
             }
             element.mapNotNull { item ->
                 runCatching { parseOne(item.jsonObject) }.getOrNull()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Could not parse model output: $cleaned", e)
+            Log.e(TAG, "Could not parse model output: $jsonText", e)
             emptyList()
         }
     }

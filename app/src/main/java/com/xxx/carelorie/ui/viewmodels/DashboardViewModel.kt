@@ -9,6 +9,7 @@ import com.xxx.carelorie.data.MacroDataRepository
 import com.xxx.carelorie.data.UserRepository
 import com.xxx.carelorie.data.remote.RemoteFoodLog
 import com.xxx.carelorie.data.WeightRecord
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,13 +26,23 @@ data class DashboardUiState(
     val weightHistory: List<WeightRecord> = emptyList(),
     val currentStreak: Int = 0,
     val trackedDates: Set<LocalDate> = emptySet(),
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
     val error: String? = null,
     /** One-shot text for a snackbar/toast, e.g. the result of a delete. */
     val message: String? = null
 ) {
-    val todayIntake: DailyMacroIntake?
-        get() = monthlyIntake.find { it.date == LocalDate.now() } ?: weeklyIntake.find { it.date == LocalDate.now() }
+    val todayIntake: DailyMacroIntake
+        get() {
+            val protein = todayLogs.sumOf { it.protein.toDouble() }.toFloat()
+            val carbs = todayLogs.sumOf { it.carbs.toDouble() }.toFloat()
+            val fat = todayLogs.sumOf { it.fat.toDouble() }.toFloat()
+            return DailyMacroIntake(
+                date = LocalDate.now(),
+                protein = protein,
+                carbs = carbs,
+                fat = fat
+            )
+        }
 }
 
 sealed class DashboardEvent {
@@ -50,6 +61,8 @@ class DashboardViewModel(
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    private var todayLogsJob: Job? = null
 
     fun onEvent(event: DashboardEvent) {
         when (event) {
@@ -95,6 +108,10 @@ class DashboardViewModel(
                 val logsByDate = allLogs.groupBy { it.createdAt.take(10) }
                 
                 val todayLogs = logsByDate[today.toString()] ?: emptyList()
+                
+                // Observe today's logs in real time so deletions from the Food Log screen or
+                // elsewhere are reflected immediately without waiting for the next refresh.
+                observeTodayLogs(userId)
                 
                 // Weekly Data (last 7 days)
                 val weeklyData = (0..6).map { i ->
@@ -165,6 +182,15 @@ class DashboardViewModel(
                         error = "Failed to load dashboard: ${e.localizedMessage ?: "Unknown error"}"
                     )
                 }
+            }
+        }
+    }
+
+    private fun observeTodayLogs(userId: String) {
+        todayLogsJob?.cancel()
+        todayLogsJob = viewModelScope.launch {
+            foodRepository.observeLogsForDate(userId, LocalDate.now()).collect { logs ->
+                _uiState.update { it.copy(todayLogs = logs) }
             }
         }
     }

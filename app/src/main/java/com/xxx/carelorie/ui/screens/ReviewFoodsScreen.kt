@@ -23,6 +23,7 @@ import com.xxx.carelorie.data.nutrition.NutritionDetail
 import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.ui.viewmodels.FoodSearchEvent
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
+import com.xxx.carelorie.ui.viewmodels.SearchMode
 
 /**
  * Last stop before anything reaches the food log.
@@ -39,6 +40,7 @@ fun ReviewFoodsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val isAiMode = uiState.mode == SearchMode.AI
 
     // Once everything is logged, the selection empties and this screen has nothing to show.
     LaunchedEffect(uiState.isLoggingComplete) {
@@ -60,7 +62,7 @@ fun ReviewFoodsScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Review foods") },
+                title = { Text(if (isAiMode) "New Preset" else "Review foods") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.Close, contentDescription = "Back to search")
@@ -77,20 +79,22 @@ fun ReviewFoodsScreen(
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = { navController.popBackStack() },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(Icons.Default.Add, null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Add more")
+                    if (!isAiMode) {
+                        OutlinedButton(
+                            onClick = { navController.popBackStack() },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Default.Add, null, Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Add more")
+                        }
                     }
                     Button(
                         onClick = { viewModel.onEvent(FoodSearchEvent.LogSelected(userId)) },
                         modifier = Modifier.weight(1f),
                         enabled = uiState.hasSelection && !uiState.isLoading
                     ) {
-                        Text("Log ${uiState.selectedCount} to ${uiState.mealType}")
+                        Text(if (isAiMode) "Save Preset" else "Log ${uiState.selectedCount} to ${uiState.mealType}")
                     }
                 }
             }
@@ -119,11 +123,14 @@ fun ReviewFoodsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            TotalsCard(uiState.totalCalories, uiState.totalProtein, uiState.totalCarbs, uiState.totalFat)
+            if (!isAiMode) {
+                TotalsCard(uiState.totalCalories, uiState.totalProtein, uiState.totalCarbs, uiState.totalFat)
+                Spacer(Modifier.height(16.dp))
+            }
 
-            Spacer(Modifier.height(16.dp))
+            val listToShow = if (isAiMode) uiState.selectedList.take(1) else uiState.selectedList
 
-            uiState.selectedList.forEach { candidate ->
+            listToShow.forEach { candidate ->
                 CandidateCard(
                     candidate = candidate,
                     onRemove = { viewModel.onEvent(FoodSearchEvent.ToggleSelection(candidate)) },

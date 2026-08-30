@@ -195,7 +195,7 @@ class FoodRepository(
     }
 
     private suspend fun flushPendingDeletes(): Set<Int> {
-        val deletedRemoteIds = mutableSetOf<Int>()
+        val attemptedRemoteIds = mutableSetOf<Int>()
         val pending = try {
             foodLogDao.getPendingDeletes()
         } catch (e: Exception) {
@@ -204,13 +204,17 @@ class FoodRepository(
         for (entry in pending) {
             val remoteId = entry.remoteId
             if (remoteId == null) {
+                // Never reached the server — safe to remove locally immediately.
                 foodLogDao.deleteByLocalId(entry.localId)
             } else if (supabaseRepository.deleteFoodLog(remoteId)) {
-                foodLogDao.deleteByLocalId(entry.localId)
-                deletedRemoteIds.add(remoteId)
+                // Track that we attempted the server delete, but do NOT remove the local row yet.
+                // RLS or other silent failures can make the delete appear successful while the
+                // record remains. The next refresh will confirm the row is gone from the server
+                // before cleaning it up locally.
+                attemptedRemoteIds.add(remoteId)
             }
         }
-        return deletedRemoteIds
+        return attemptedRemoteIds
     }
 
 

@@ -20,15 +20,15 @@ import androidx.compose.ui.unit.dp
 import com.xxx.carelorie.data.DailyMacroIntake
 
 @Composable
-fun MacroRow(todayIntake: DailyMacroIntake?) {
+fun MacroRow(todayIntake: DailyMacroIntake) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        MacroCard("Protein", todayIntake?.protein?.toInt() ?: 0, 120, Modifier.weight(1f))
-        MacroCard("Carbs", todayIntake?.carbs?.toInt() ?: 0, 200, Modifier.weight(1f))
-        MacroCard("Fat", todayIntake?.fat?.toInt() ?: 0, 50, Modifier.weight(1f))
-        MacroCard("Calories", todayIntake?.calories ?: 0, 1700, Modifier.weight(1f))
+        MacroCard("Protein", todayIntake.protein.toInt(), 120, Modifier.weight(1f))
+        MacroCard("Carbs", todayIntake.carbs.toInt(), 200, Modifier.weight(1f))
+        MacroCard("Fat", todayIntake.fat.toInt(), 50, Modifier.weight(1f))
+        MacroCard("Calories", todayIntake.calories, 1700, Modifier.weight(1f))
     }
 }
 

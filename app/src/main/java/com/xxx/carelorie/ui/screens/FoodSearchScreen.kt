@@ -63,19 +63,6 @@ fun FoodSearchScreen(
         }
     }
 
-    // Camera capture returns a thumbnail Bitmap; enough for recognition and avoids
-    // needing a FileProvider or a storage permission.
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicturePreview()
-    ) { bitmap ->
-        if (bitmap != null) {
-            val stream = ByteArrayOutputStream()
-            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, stream)
-            val encoded = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
-            viewModel.onEvent(FoodSearchEvent.PhotoCaptured(encoded))
-        }
-    }
-
     fun startScan() {
         // Google Code Scanner provides the whole scanning UI and needs no CAMERA permission.
         GmsBarcodeScanning.getClient(context)
@@ -189,7 +176,7 @@ fun FoodSearchScreen(
                     leadingIcon = { Icon(Icons.Default.QrCodeScanner, null, Modifier.size(18.dp)) }
                 )
                 AssistChip(
-                    onClick = { cameraLauncher.launch(null) },
+                    onClick = { viewModel.onEvent(FoodSearchEvent.AiSearch) },
                     label = { Text("A.I") },
                     leadingIcon = { Icon(Icons.Default.PhotoCamera, null, Modifier.size(18.dp)) }
                 )
@@ -205,7 +192,7 @@ fun FoodSearchScreen(
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        "Analysing your photo…",
+                        "Asking A.I…",
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }

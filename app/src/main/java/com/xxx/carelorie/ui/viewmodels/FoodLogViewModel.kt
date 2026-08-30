@@ -167,6 +167,9 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
                     }
                 )
             }
+            // Attempt to push the pending delete to the server immediately so the log does not
+            // resurrect on the next refresh.
+            syncFrom(userId, _uiState.value.selectedDate)
         }
     }
 
