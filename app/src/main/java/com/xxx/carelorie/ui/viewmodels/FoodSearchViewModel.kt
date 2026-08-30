@@ -304,7 +304,7 @@ class FoodSearchViewModel(
                     isAnalysing = false,
                     mode = SearchMode.PRESETS,
                     results = filterPresets(it.presets, it.query),
-                    message = "AI service isn't set up yet."
+                    message = "AI is not configured. Add DEEPSEEK_API_KEY to local.properties and rebuild."
                 )
             }
         }

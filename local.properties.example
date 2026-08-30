@@ -1,4 +1,13 @@
-# Copy the relevant line into local.properties (git-ignored, never commit it).
-# Leave it out entirely and the app uses the built-in stub recogniser.
-# Free key: https://aistudio.google.com/apikey
-GEMINI_API_KEY=
+# Copy these lines into local.properties (git-ignored, never commit it).
+#
+# sdk.dir is required — a fresh clone will not build without it. Point it at your own
+# Android SDK; the path differs per machine and per OS.
+sdk.dir=/path/to/your/Android/Sdk
+
+# Enables the AI diet chat and the "Search With AI" nutrition estimates.
+# Without it the app still runs, but every AI feature reports that it is not configured
+# rather than inventing numbers.
+#
+# Get a key at https://platform.deepseek.com. Note that any key compiled into an APK can be
+# extracted from it — use a rotatable key and rotate it after submission.
+DEEPSEEK_API_KEY=

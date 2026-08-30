@@ -51,6 +51,15 @@ data class FoodQueryUiState(
 
     val isBusy: Boolean get() = isSearching || isAnalysing
     val hasResults: Boolean get() = searchResults.isNotEmpty()
+
+    /**
+     * Foods saved on this device that Supabase has not accepted.
+     *
+     * Derived from the rows we already observe, so it costs nothing. A non-zero count while
+     * online almost always means the `food_presets` table is missing the `brand` /
+     * `servingDescription` columns or the insert policy — the failure that used to be silent.
+     */
+    val unsyncedCount: Int get() = allPresets.count { !it.isBuiltIn && !it.isSynced }
 }
 
 sealed class FoodQueryEvent {
@@ -235,7 +244,7 @@ class FoodQueryViewModel(
                     )
                 }
                 RecognitionResult.NotConfigured -> _uiState.update {
-                    it.copy(isAnalysing = false, message = "AI service isn't set up yet.")
+                    it.copy(isAnalysing = false, message = "AI is not configured. Add DEEPSEEK_API_KEY to local.properties and rebuild.")
                 }
             }
         }

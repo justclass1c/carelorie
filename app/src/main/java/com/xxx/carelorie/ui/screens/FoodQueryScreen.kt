@@ -113,7 +113,16 @@ fun FoodQueryScreen(
                     .padding(horizontal = 16.dp)
             ) {
                 if (uiState.isOffline) {
-                    OfflineNotice()
+                    Notice("Offline — changes will sync when you reconnect.")
+                } else if (uiState.unsyncedCount > 0) {
+                    // Online but the server rejected the write. Saying so beats a row that
+                    // quietly never leaves the phone.
+                    Notice(
+                        "${uiState.unsyncedCount} food(s) saved here but not accepted by the " +
+                            "server. Check the food_presets table has the brand and " +
+                            "servingDescription columns and an insert policy.",
+                        warning = true
+                    )
                 }
 
                 Spacer(Modifier.height(12.dp))
@@ -353,16 +362,24 @@ private fun ResultRow(candidate: FoodCandidate, onAdd: () -> Unit) {
 }
 
 @Composable
-private fun OfflineNotice() {
+private fun Notice(text: String, warning: Boolean = false) {
     Surface(
-        color = MaterialTheme.colorScheme.secondaryContainer,
+        color = if (warning) {
+            MaterialTheme.colorScheme.errorContainer
+        } else {
+            MaterialTheme.colorScheme.secondaryContainer
+        },
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
-            "Offline — changes will sync when you reconnect.",
+            text = text,
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            color = if (warning) {
+                MaterialTheme.colorScheme.onErrorContainer
+            } else {
+                MaterialTheme.colorScheme.onSecondaryContainer
+            },
             modifier = Modifier.padding(8.dp)
         )
     }
