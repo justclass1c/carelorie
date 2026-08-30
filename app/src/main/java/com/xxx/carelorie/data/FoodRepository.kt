@@ -8,6 +8,7 @@ import com.xxx.carelorie.data.local.toEntity
 import com.xxx.carelorie.data.local.toPresetEntity
 import com.xxx.carelorie.data.local.toRemote
 import com.xxx.carelorie.data.remote.RemoteFoodLog
+import com.xxx.carelorie.data.nutrition.NutritionDetail
 import com.xxx.carelorie.data.remote.RemoteFoodPreset
 import com.xxx.carelorie.data.remote.SupabaseRepository
 import kotlinx.coroutines.flow.Flow
@@ -69,8 +70,33 @@ class FoodRepository(
 
     // ---------------------------------------------------------------- writes (local first)
 
-    suspend fun logFood(userId: String, mealType: String, food: RemoteFoodPreset) {
-        val now = LocalDateTime.now().toString()
+    /**
+     * Writes a food into the diary.
+     *
+     * [date] defaults to today but is a parameter, so the food log's date navigator can add to the
+     * day you are looking at. Before this, every entry was stamped with `now()`, which meant a
+     * missed meal could never be entered afterwards.
+     *
+     * [food] carries the totals for [quantity] servings; the quantity is stored alongside so the
+     * entry can be edited later, and the name stays clean instead of having "(x2)" glued on.
+     */
+    suspend fun logFood(
+        userId: String,
+        mealType: String,
+        food: RemoteFoodPreset,
+        quantity: Float = 1f,
+        date: LocalDate = LocalDate.now(),
+        detail: NutritionDetail? = null,
+        sourcePresetId: String? = null
+    ) {
+        // Keep the clock time when logging today, so entries stay in the order they were eaten.
+        // Backdated entries land at midday, which sorts them sensibly among that day's meals.
+        val timestamp = if (date == LocalDate.now()) {
+            LocalDateTime.now()
+        } else {
+            date.atTime(12, 0)
+        }.toString()
+
         val entity = FoodLogEntity(
             localId = UUID.randomUUID().toString(),
             remoteId = null,
@@ -81,12 +107,55 @@ class FoodRepository(
             protein = food.protein,
             carbs = food.carbs,
             fat = food.fat,
-            loggedAt = now,
-            logDate = now.take(10),
+            quantity = quantity,
+            sourcePresetId = sourcePresetId,
+            brand = detail?.brand ?: food.brand,
+            servingDescription = detail?.servingDescription ?: food.servingDescription,
+            fiberGrams = detail?.fiberGrams,
+            sugarGrams = detail?.sugarGrams,
+            saturatedFatGrams = detail?.saturatedFatGrams,
+            sodiumMilligrams = detail?.sodiumMilligrams,
+            nutritionSource = detail?.source?.name,
+            loggedAt = timestamp,
+            logDate = timestamp.take(10),
             isSynced = false
         )
         foodLogDao.upsert(entity)
         pushUnsynced()
+    }
+
+    /**
+     * Changes the servings and/or the meal of an entry already in the diary.
+     *
+     * Macros are rescaled from the stored total rather than re-fetched, so this works offline and
+     * needs nothing from the source food. Marking the row unsynced routes it back through
+     * [pushUnsynced], which updates the server copy rather than inserting a duplicate.
+     */
+    suspend fun updateLog(
+        localId: String,
+        quantity: Float,
+        mealType: String
+    ): Result<Unit> {
+        val existing = foodLogDao.getByLocalId(localId)
+            ?: return Result.failure(IllegalArgumentException("That entry no longer exists"))
+
+        val safeQuantity = quantity.coerceIn(0.25f, 20f)
+        val perServing = if (existing.quantity > 0f) existing.quantity else 1f
+        val factor = safeQuantity / perServing
+
+        foodLogDao.upsert(
+            existing.copy(
+                quantity = safeQuantity,
+                mealType = mealType,
+                calories = (existing.calories * factor).toInt(),
+                protein = existing.protein * factor,
+                carbs = existing.carbs * factor,
+                fat = existing.fat * factor,
+                isSynced = false
+            )
+        )
+        pushUnsynced()
+        return Result.success(Unit)
     }
 
     /** Removes an entry locally straight away, then tries to remove the server copy. */
@@ -162,17 +231,17 @@ class FoodRepository(
             }
         }
 
-        // Before inserting, try to match remoteId to existing local entries to preserve localId
+        // Match on remoteId so the local row keeps its id — and its quantity and nutrition
+        // detail, which the server does not store and would otherwise be wiped on every sync.
         val existingEntries = foodLogDao.getFrom(userId, fetchStart)
-        val remoteIdToLocalId = existingEntries.mapNotNull { e -> 
-            e.remoteId?.let { it to e.localId } 
-        }.toMap()
+        val byRemoteId = existingEntries.mapNotNull { e -> e.remoteId?.let { it to e } }.toMap()
 
         val entities = filteredRemote.map { remoteLog ->
-            val existingLocalId = remoteLog.id?.let { remoteIdToLocalId[it] }
+            val existing = remoteLog.id?.let { byRemoteId[it] }
             remoteLog.toEntity(
-                localId = existingLocalId ?: UUID.randomUUID().toString(),
-                isSynced = true
+                localId = existing?.localId ?: UUID.randomUUID().toString(),
+                isSynced = true,
+                preserve = existing
             )
         }
 
@@ -191,9 +260,12 @@ class FoodRepository(
             return
         }
         for (entry in pending) {
-            val remote = supabaseRepository.addFoodLog(entry.toRemote().copy(id = null))
-            if (remote != null) {
-                foodLogDao.markSynced(entry.localId, remote.id)
+            if (entry.remoteId == null) {
+                val remote = supabaseRepository.addFoodLog(entry.toRemote().copy(id = null))
+                if (remote != null) foodLogDao.markSynced(entry.localId, remote.id)
+            } else if (supabaseRepository.updateFoodLog(entry.toRemote())) {
+                // Already on the server — an edit, not a new entry.
+                foodLogDao.markSynced(entry.localId, entry.remoteId)
             }
         }
     }

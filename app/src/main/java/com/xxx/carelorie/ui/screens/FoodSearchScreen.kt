@@ -41,7 +41,8 @@ import com.xxx.carelorie.ui.viewmodels.FoodSearchEvent
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.PresetFilter
 import com.xxx.carelorie.ui.viewmodels.SearchMode
-import java.io.ByteArrayOutputStream
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,6 +50,7 @@ fun FoodSearchScreen(
     navController: NavController,
     userId: String,
     mealType: String,
+    logDate: LocalDate = LocalDate.now(),
     viewModel: FoodSearchViewModel
 ) {
     val twoPane = isExpandedScreen
@@ -57,8 +59,9 @@ fun FoodSearchScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var mealMenuOpen by remember { mutableStateOf(false) }
 
-    LaunchedEffect(userId, mealType) {
+    LaunchedEffect(userId, mealType, logDate) {
         viewModel.onEvent(FoodSearchEvent.MealTypeChanged(mealType))
+        viewModel.onEvent(FoodSearchEvent.LogDateChanged(logDate))
         viewModel.onEvent(FoodSearchEvent.LoadPresets(userId))
     }
 
@@ -93,7 +96,18 @@ fun FoodSearchScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.clickable { mealMenuOpen = true }
                         ) {
-                            Text(uiState.mealType, fontWeight = FontWeight.Medium)
+                            Column {
+                                Text(uiState.mealType, fontWeight = FontWeight.Medium)
+                                if (uiState.logDate != LocalDate.now()) {
+                                    Text(
+                                        text = uiState.logDate.format(
+                                            DateTimeFormatter.ofPattern("d MMM yyyy")
+                                        ),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                             Icon(Icons.Default.ArrowDropDown, contentDescription = "Change meal")
                         }
                         DropdownMenu(

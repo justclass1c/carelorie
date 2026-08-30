@@ -17,7 +17,7 @@ import com.xxx.carelorie.data.local.FoodPresetEntity
         FoodLogEntity::class,
         FoodPresetEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

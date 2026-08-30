@@ -29,8 +29,22 @@ data class RemoteFoodLog(
      * Local Room key. Marked @Transient so it is never sent to Supabase — that table has no
      * such column. It lets the UI address an entry that has not been given a server id yet.
      */
-    @Transient val localId: String = ""
-)
+    @Transient val localId: String = "",
+
+    // Device-only, for the same reason as localId: food_logs has no columns for them. They let
+    // the diary show servings and a nutrition breakdown without a database migration.
+    @Transient val quantity: Float = 1f,
+    @Transient val brand: String? = null,
+    @Transient val servingDescription: String? = null,
+    @Transient val fiberGrams: Float? = null,
+    @Transient val sugarGrams: Float? = null,
+    @Transient val saturatedFatGrams: Float? = null,
+    @Transient val sodiumMilligrams: Float? = null,
+    @Transient val nutritionSource: String? = null
+) {
+    val hasNutritionDetail: Boolean
+        get() = listOfNotNull(fiberGrams, sugarGrams, saturatedFatGrams, sodiumMilligrams).isNotEmpty()
+}
 
 @Serializable
 data class RemoteFoodPreset(

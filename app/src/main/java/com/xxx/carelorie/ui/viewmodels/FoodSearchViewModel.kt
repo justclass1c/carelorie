@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /** What the results list is currently showing. */
 enum class SearchMode { PRESETS, ONLINE, SCAN, AI }
@@ -28,6 +29,8 @@ enum class PresetFilter(val label: String) { ALL("All"), MINE("Mine") }
 data class FoodSearchUiState(
     val query: String = "",
     val mealType: String = "Breakfast",
+    /** The day being logged into — the food log can open this screen for a past date. */
+    val logDate: LocalDate = LocalDate.now(),
     val presets: List<FoodCandidate> = emptyList(),
     val results: List<FoodCandidate> = emptyList(),
     /** Keyed by selectionId for uniqueness. */
@@ -56,6 +59,7 @@ sealed class FoodSearchEvent {
     data class LoadPresets(val userId: String) : FoodSearchEvent()
     data class SearchQueryChanged(val query: String) : FoodSearchEvent()
     data class MealTypeChanged(val mealType: String) : FoodSearchEvent()
+    data class LogDateChanged(val date: LocalDate) : FoodSearchEvent()
     data class ToggleSelection(val candidate: FoodCandidate) : FoodSearchEvent()
     data class ChangeQuantity(val candidate: FoodCandidate, val quantity: Float) : FoodSearchEvent()
     data class BarcodeScanned(val barcode: String) : FoodSearchEvent()
@@ -89,6 +93,7 @@ class FoodSearchViewModel(
             is FoodSearchEvent.LoadPresets -> loadPresets(event.userId)
             is FoodSearchEvent.SearchQueryChanged -> onQueryChanged(event.query)
             is FoodSearchEvent.MealTypeChanged -> _uiState.update { it.copy(mealType = event.mealType) }
+            is FoodSearchEvent.LogDateChanged -> _uiState.update { it.copy(logDate = event.date) }
             is FoodSearchEvent.ToggleSelection -> toggleSelection(event.candidate)
             is FoodSearchEvent.ChangeQuantity -> changeQuantity(event.candidate, event.quantity)
             is FoodSearchEvent.BarcodeScanned -> lookupBarcode(event.barcode)
@@ -387,19 +392,31 @@ class FoodSearchViewModel(
         val state = _uiState.value
         if (state.selected.isEmpty()) return
         val mealType = state.mealType
+        val logDate = state.logDate
         val toLog = state.selectedList
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             toLog.forEach { candidate ->
-                foodRepository.logFood(userId, mealType, candidate.toLoggablePreset())
+                foodRepository.logFood(
+                    userId = userId,
+                    mealType = mealType,
+                    food = candidate.toLoggablePreset(),
+                    quantity = candidate.quantity,
+                    date = logDate,
+                    detail = candidate.detail
+                )
             }
             _uiState.update {
                 it.copy(
                     selected = emptyMap(),
                     isLoading = false,
                     isLoggingComplete = true,
-                    message = "Added ${toLog.size} item(s) to $mealType"
+                    message = if (logDate == LocalDate.now()) {
+                        "Added ${toLog.size} item(s) to $mealType"
+                    } else {
+                        "Added ${toLog.size} item(s) to $mealType on $logDate"
+                    }
                 )
             }
         }

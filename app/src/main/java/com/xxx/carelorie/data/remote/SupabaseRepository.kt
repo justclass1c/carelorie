@@ -45,6 +45,23 @@ class SupabaseRepository {
         }
     }
 
+    /** Pushes an edit to an entry that already exists on the server. */
+    suspend fun updateFoodLog(entry: RemoteFoodLog): Boolean = withContext(Dispatchers.IO) {
+        val id = entry.id ?: return@withContext false
+        try {
+            supabase.postgrest["food_logs"].update(entry) {
+                filter { eq("id", id) }
+            }
+            true
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error updating food log: ${e.description} (Code: ${e.code})", e)
+            false
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error updating food log", e)
+            false
+        }
+    }
+
     suspend fun deleteFoodLog(logId: Int): Boolean = withContext(Dispatchers.IO) {
         try {
             supabase.postgrest["food_logs"].delete {

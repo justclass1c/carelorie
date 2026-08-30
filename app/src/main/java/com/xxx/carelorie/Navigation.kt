@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.xxx.carelorie.data.SessionManager
+import java.time.LocalDate
 import com.xxx.carelorie.ui.screens.Dashboard
 import com.xxx.carelorie.ui.screens.DietChatScreen
 import com.xxx.carelorie.ui.screens.FoodEditorScreen
@@ -51,7 +52,12 @@ object Routes {
     const val FOOD_QUERY = "foodQuery"
     const val FOOD_EDITOR = "foodEditor"
 
-    fun foodSearch(mealType: String) = "$FOOD_SEARCH/$mealType"
+    /**
+     * @param date the day to log into. Omit for today; the food log passes the day it is showing,
+     * which is what makes entering a missed meal possible.
+     */
+    fun foodSearch(mealType: String, date: java.time.LocalDate? = null) =
+        if (date == null) "$FOOD_SEARCH/$mealType" else "$FOOD_SEARCH/$mealType?date=$date"
     fun profile(isOnboarding: Boolean = false) = "$PROFILE?isOnboarding=$isOnboarding"
 
     /** Omit [presetLocalId] to create a new food; pass one to edit it. */
@@ -145,13 +151,24 @@ fun AppNavigation(
             }
         }
 
-        composable("${Routes.FOOD_SEARCH}/{mealType}") { backStackEntry ->
+        composable(
+            route = "${Routes.FOOD_SEARCH}/{mealType}?date={date}",
+            arguments = listOf(navArgument("date") {
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null
+            })
+        ) { backStackEntry ->
             val mealType = backStackEntry.arguments?.getString("mealType") ?: "Breakfast"
+            val logDate = backStackEntry.arguments?.getString("date")
+                ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                ?: LocalDate.now()
             RequireUser(currentUserId, navController) { userId ->
                 FoodSearchScreen(
                     navController = navController,
                     userId = userId,
                     mealType = mealType,
+                    logDate = logDate,
                     viewModel = foodSearchViewModel
                 )
             }

@@ -75,6 +75,12 @@ sealed class FoodLogEvent {
     data class ChangeDate(val userId: String, val newDate: LocalDate) : FoodLogEvent()
     data class ChangeMonth(val yearMonth: YearMonth) : FoodLogEvent()
     data class DeleteLog(val userId: String, val log: RemoteFoodLog) : FoodLogEvent()
+    data class UpdateLog(
+        val userId: String,
+        val localId: String,
+        val quantity: Float,
+        val mealType: String
+    ) : FoodLogEvent()
     data class Refresh(val userId: String) : FoodLogEvent()
     object ToggleCalendar : FoodLogEvent()
     object MessageConsumed : FoodLogEvent()
@@ -103,6 +109,8 @@ class FoodLogViewModel(
             is FoodLogEvent.ChangeDate -> changeDate(event.userId, event.newDate)
             is FoodLogEvent.ChangeMonth -> _uiState.update { it.copy(calendarMonth = event.yearMonth) }
             is FoodLogEvent.DeleteLog -> deleteLog(event.userId, event.log)
+            is FoodLogEvent.UpdateLog ->
+                updateLog(event.userId, event.localId, event.quantity, event.mealType)
             is FoodLogEvent.Refresh -> syncFrom(event.userId, _uiState.value.selectedDate)
             is FoodLogEvent.ToggleCalendar ->
                 _uiState.update { it.copy(isCalendarVisible = !it.isCalendarVisible) }
@@ -172,6 +180,28 @@ class FoodLogViewModel(
             _uiState.update {
                 it.copy(isLoading = false, isOffline = result == SyncResult.OFFLINE)
             }
+        }
+    }
+
+    /**
+     * Changes an entry's servings or meal.
+     *
+     * The list redraws from Room on its own, so nothing here touches [logs] — only the
+     * confirmation message and the push are this function's job.
+     */
+    private fun updateLog(userId: String, localId: String, quantity: Float, mealType: String) {
+        viewModelScope.launch {
+            val result = foodRepository.updateLog(localId, quantity, mealType)
+            _uiState.update {
+                it.copy(
+                    message = if (result.isSuccess) {
+                        "Entry updated"
+                    } else {
+                        result.exceptionOrNull()?.message ?: "Could not update that entry"
+                    }
+                )
+            }
+            syncFrom(userId, _uiState.value.selectedDate)
         }
     }
 
