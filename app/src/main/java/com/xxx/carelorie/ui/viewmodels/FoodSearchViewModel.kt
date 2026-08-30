@@ -3,6 +3,7 @@ package com.xxx.carelorie.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xxx.carelorie.data.FoodRepository
+import com.xxx.carelorie.data.local.toRemote
 import com.xxx.carelorie.data.nutrition.FoodCandidate
 import com.xxx.carelorie.data.nutrition.FoodRecognitionService
 import com.xxx.carelorie.data.nutrition.NutritionDetail
@@ -21,6 +22,9 @@ import kotlinx.coroutines.launch
 /** What the results list is currently showing. */
 enum class SearchMode { PRESETS, ONLINE, SCAN, AI }
 
+/** Which slice of the local food library the preset list is showing. */
+enum class PresetFilter(val label: String) { ALL("All"), MINE("Mine") }
+
 data class FoodSearchUiState(
     val query: String = "",
     val mealType: String = "Breakfast",
@@ -29,6 +33,7 @@ data class FoodSearchUiState(
     /** Keyed by selectionId for uniqueness. */
     val selected: Map<String, FoodCandidate> = emptyMap(),
     val mode: SearchMode = SearchMode.PRESETS,
+    val presetFilter: PresetFilter = PresetFilter.ALL,
     val isLoading: Boolean = false,
     val isAnalysing: Boolean = false,
     val isLoggingComplete: Boolean = false,
@@ -55,8 +60,10 @@ sealed class FoodSearchEvent {
     data class ChangeQuantity(val candidate: FoodCandidate, val quantity: Float) : FoodSearchEvent()
     data class BarcodeScanned(val barcode: String) : FoodSearchEvent()
     data class PhotoCaptured(val imageBase64: String) : FoodSearchEvent()
+    data class PresetFilterChanged(val filter: PresetFilter) : FoodSearchEvent()
     object AiSearch : FoodSearchEvent()
     data class LogSelected(val userId: String) : FoodSearchEvent()
+    data class SaveSelectedAsPresets(val userId: String) : FoodSearchEvent()
     object SearchOnline : FoodSearchEvent()
     object ClearSelection : FoodSearchEvent()
     object ShowPresets : FoodSearchEvent()
@@ -86,8 +93,18 @@ class FoodSearchViewModel(
             is FoodSearchEvent.ChangeQuantity -> changeQuantity(event.candidate, event.quantity)
             is FoodSearchEvent.BarcodeScanned -> lookupBarcode(event.barcode)
             is FoodSearchEvent.PhotoCaptured -> analysePhoto(event.imageBase64)
+            is FoodSearchEvent.PresetFilterChanged -> _uiState.update {
+                // Changing the filter always returns to the local library, since the filter
+                // has no meaning over online or AI results.
+                it.copy(
+                    presetFilter = event.filter,
+                    mode = SearchMode.PRESETS,
+                    results = filterPresets(it.presets, it.query, event.filter)
+                )
+            }
             is FoodSearchEvent.AiSearch -> aiSearch()
             is FoodSearchEvent.LogSelected -> logSelected(event.userId)
+            is FoodSearchEvent.SaveSelectedAsPresets -> saveSelectedAsPresets(event.userId)
             is FoodSearchEvent.SearchOnline -> searchOnline()
             is FoodSearchEvent.ClearSelection -> _uiState.update { it.copy(selected = emptyMap()) }
             is FoodSearchEvent.ShowPresets -> _uiState.update {
@@ -98,24 +115,47 @@ class FoodSearchViewModel(
         }
     }
 
+    private var presetsJob: Job? = null
+
+    /**
+     * Observes the local preset table, so a food saved in the editor appears here at once and
+     * the list still works with no connection. The Supabase pull is a background refresh on top.
+     */
     private fun loadPresets(userId: String) {
         _uiState.update { it.copy(isLoading = true) }
-        viewModelScope.launch {
-            val candidates = foodRepository.getFoodPresets(userId).map { preset ->
-                FoodCandidate(
-                    preset = preset,
-                    detail = NutritionDetail(source = NutritionSource.APP_PRESET)
-                )
-            }
-            _uiState.update {
-                it.copy(
-                    presets = candidates,
-                    results = filterPresets(candidates, it.query),
-                    mode = SearchMode.PRESETS,
-                    isLoading = false
-                )
+
+        presetsJob?.cancel()
+        presetsJob = viewModelScope.launch {
+            foodRepository.observePresets(userId).collect { entities ->
+                val candidates = entities.map { entity ->
+                    FoodCandidate(
+                        preset = entity.toRemote(),
+                        detail = NutritionDetail(
+                            servingDescription = entity.servingDescription,
+                            brand = entity.brand,
+                            source = if (entity.isBuiltIn) {
+                                NutritionSource.APP_PRESET
+                            } else {
+                                NutritionSource.USER_ENTERED
+                            }
+                        )
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        presets = candidates,
+                        results = if (it.mode == SearchMode.PRESETS) {
+                            filterPresets(candidates, it.query)
+                        } else {
+                            it.results
+                        },
+                        isLoading = false
+                    )
+                }
             }
         }
+
+        viewModelScope.launch { foodRepository.refreshPresets(userId) }
     }
 
     /** Local filter is instant; the online search is an explicit action, not a keystroke. */
@@ -129,9 +169,14 @@ class FoodSearchViewModel(
         }
     }
 
-    private fun filterPresets(presets: List<FoodCandidate>, query: String): List<FoodCandidate> =
-        if (query.isBlank()) presets
-        else presets.filter { it.preset.name.contains(query, ignoreCase = true) }
+    private fun filterPresets(
+        presets: List<FoodCandidate>,
+        query: String,
+        filter: PresetFilter = _uiState.value.presetFilter
+    ): List<FoodCandidate> = presets
+        // A built-in preset has no owner; anything with a userId was created by this user.
+        .filter { filter == PresetFilter.ALL || it.preset.userId != null }
+        .filter { query.isBlank() || it.preset.name.contains(query, ignoreCase = true) }
 
     private fun searchOnline() {
         val query = _uiState.value.query
@@ -290,6 +335,51 @@ class FoodSearchViewModel(
             }
             
             state.copy(selected = updatedSelection, results = updatedResults)
+        }
+    }
+
+    /**
+     * Keeps the selected foods in the user's library instead of logging them.
+     *
+     * This is what the Review screen's "Save Preset" button in AI mode is for — an AI estimate
+     * is worth keeping so the next time the food is eaten it takes one tap and no API call.
+     * Quantity is deliberately ignored: a saved food is a single serving, and the log applies
+     * the multiplier.
+     */
+    private fun saveSelectedAsPresets(userId: String) {
+        val toSave = _uiState.value.selectedList
+        if (toSave.isEmpty()) return
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            var saved = 0
+            for (candidate in toSave) {
+                val preset = candidate.preset
+                val result = foodRepository.savePreset(
+                    userId = userId,
+                    localId = null,
+                    name = preset.name,
+                    brand = candidate.detail?.brand,
+                    servingDescription = candidate.detail?.servingDescription,
+                    calories = preset.calories,
+                    protein = preset.protein,
+                    carbs = preset.carbs,
+                    fat = preset.fat
+                )
+                if (result.isSuccess) saved++
+            }
+            _uiState.update {
+                it.copy(
+                    selected = emptyMap(),
+                    isLoading = false,
+                    isLoggingComplete = true,
+                    message = if (saved > 0) {
+                        "Saved $saved item(s) to Food Query"
+                    } else {
+                        "Could not save that food."
+                    }
+                )
+            }
         }
     }
 

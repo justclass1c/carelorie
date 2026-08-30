@@ -37,7 +37,12 @@ data class FoodLogUiState(
     val loggedDates: Set<LocalDate> = emptySet(),
     val calendarMonth: YearMonth = YearMonth.now(),
     val isCalendarVisible: Boolean = false,
-    val isLoading: Boolean = false,
+    /**
+     * Starts true: until Room has answered we do not know whether the day is empty, and
+     * rendering the empty state on that first frame flashes "nothing logged" over a day
+     * that actually has entries.
+     */
+    val isLoading: Boolean = true,
     val isOffline: Boolean = false,
     val message: String? = null,
     val targets: NutritionTargets = NutritionTargets.DEFAULT

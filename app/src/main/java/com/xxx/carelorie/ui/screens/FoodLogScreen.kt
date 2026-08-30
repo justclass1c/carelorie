@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.xxx.carelorie.data.remote.RemoteFoodLog
 import com.xxx.carelorie.ui.components.food.FoodLogCalendar
+import com.xxx.carelorie.ui.layout.isWideScreen
 import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.ui.theme.overLimitColor
 import com.xxx.carelorie.ui.viewmodels.FoodLogEvent
@@ -41,9 +42,9 @@ private val DATE_LABEL = DateTimeFormatter.ofPattern("EEE, MMM d")
 fun FoodLogScreen(
     navController: NavController,
     userId: String,
-    viewModel: FoodLogViewModel,
-    isWideScreen: Boolean = false
+    viewModel: FoodLogViewModel
 ) {
+    val wide = isWideScreen
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -66,7 +67,7 @@ fun FoodLogScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (isWideScreen) {
+        if (wide) {
             // Tablet: calendar stays open beside the log instead of pushing it down.
             Row(modifier = Modifier.fillMaxSize()) {
                 Column(

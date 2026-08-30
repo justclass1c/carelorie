@@ -5,8 +5,10 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,6 +17,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -32,9 +35,12 @@ import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.xxx.carelorie.Routes
 import com.xxx.carelorie.data.nutrition.FoodCandidate
 import com.xxx.carelorie.ui.components.dashboard.MEAL_TYPES
+import com.xxx.carelorie.ui.layout.isExpandedScreen
 import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.ui.viewmodels.FoodSearchEvent
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
+import com.xxx.carelorie.ui.viewmodels.PresetFilter
+import com.xxx.carelorie.ui.viewmodels.SearchMode
 import java.io.ByteArrayOutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,9 +49,9 @@ fun FoodSearchScreen(
     navController: NavController,
     userId: String,
     mealType: String,
-    viewModel: FoodSearchViewModel,
-    isWideScreen: Boolean = false
+    viewModel: FoodSearchViewModel
 ) {
+    val twoPane = isExpandedScreen
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -161,8 +167,38 @@ fun FoodSearchScreen(
 
             Spacer(Modifier.height(12.dp))
 
+            // Which slice of the local library to show. Custom foods have to be findable at the
+            // moment of logging, not only from the manage screen.
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PresetFilter.entries.forEach { filter ->
+                    FilterChip(
+                        selected = uiState.mode == SearchMode.PRESETS &&
+                            uiState.presetFilter == filter,
+                        onClick = { viewModel.onEvent(FoodSearchEvent.PresetFilterChanged(filter)) },
+                        label = { Text(filter.label) }
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                // Straight to the editor rather than the library: you searched and didn't find
+                // it, so creating one is the action you actually want. The library itself is a
+                // nav tab now.
+                TextButton(onClick = { navController.navigate(Routes.foodEditor()) }) {
+                    Text("+ New")
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Three chips overflow a narrow phone, so the row scrolls rather than
+            // clipping the last one.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AssistChip(
@@ -200,32 +236,135 @@ fun FoodSearchScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            if (uiState.isLoading && uiState.results.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
+            val resultsPane: @Composable (Modifier) -> Unit = { paneModifier ->
+                when {
+                    uiState.isLoading && uiState.results.isEmpty() ->
+                        Box(paneModifier, contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+
+                    uiState.results.isEmpty() ->
+                        Box(paneModifier, contentAlignment = Alignment.Center) {
+                            Text(
+                                "No foods to show. Try searching online or scanning a barcode.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                    else -> LazyColumn(
+                        modifier = paneModifier,
+                        contentPadding = PaddingValues(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(uiState.results, key = { it.selectionId }) { candidate ->
+                            SelectableFoodRow(
+                                candidate = candidate,
+                                isSelected = uiState.isSelected(candidate),
+                                onToggle = {
+                                    viewModel.onEvent(FoodSearchEvent.ToggleSelection(candidate))
+                                }
+                            )
+                        }
+                    }
                 }
-            } else if (uiState.results.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "No foods to show. Try searching online or scanning a barcode.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+            }
+
+            if (twoPane) {
+                // Wide: what you have picked stays visible beside the results, so you don't
+                // have to leave the screen to check the running selection.
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    resultsPane(Modifier.weight(1f).fillMaxHeight())
+                    VerticalDivider()
+                    SelectionPane(
+                        modifier = Modifier.weight(0.55f).fillMaxHeight(),
+                        uiState = uiState,
+                        onRemove = { viewModel.onEvent(FoodSearchEvent.ToggleSelection(it)) },
+                        onReview = { navController.navigate(Routes.REVIEW_FOODS) }
                     )
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(uiState.results, key = { it.selectionId }) { candidate ->
-                        SelectableFoodRow(
-                            candidate = candidate,
-                            isSelected = uiState.isSelected(candidate),
-                            onToggle = { viewModel.onEvent(FoodSearchEvent.ToggleSelection(candidate)) }
+                resultsPane(Modifier.fillMaxSize())
+            }
+        }
+    }
+}
+
+/** The running selection, shown alongside the results on wide screens. */
+@Composable
+private fun SelectionPane(
+    modifier: Modifier = Modifier,
+    uiState: com.xxx.carelorie.ui.viewmodels.FoodSearchUiState,
+    onRemove: (FoodCandidate) -> Unit,
+    onReview: () -> Unit
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = "Selected (${uiState.selectedCount})",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Medium
+        )
+        Spacer(Modifier.height(8.dp))
+
+        if (!uiState.hasSelection) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    "Nothing selected yet.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(uiState.selectedList, key = { it.selectionId }) { candidate ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    candidate.preset.name,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    "${candidate.calories} kcal",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = { onRemove(candidate) }) {
+                                Icon(Icons.Default.Close, contentDescription = "Remove")
+                            }
+                        }
                     }
                 }
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "${uiState.totalCalories} kcal total",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onReview,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            ) {
+                Text("Review ${uiState.selectedCount}")
             }
         }
     }

@@ -28,6 +28,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.xxx.carelorie.ui.layout.ContentWidth
+import com.xxx.carelorie.ui.layout.constrainedWidth
 import com.xxx.carelorie.ui.viewmodels.ChatMessage
 import com.xxx.carelorie.ui.viewmodels.DietChatViewModel
 
@@ -184,7 +186,12 @@ fun DietChatScreen(navController: NavController, viewModel: DietChatViewModel) {
             LazyColumn(
                 state = scrollState,
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxHeight()
+                    // A transcript that runs the full width of a tablet is unreadable, so the
+                    // conversation stays a centred column.
+                    .constrainedWidth(ContentWidth.Reading)
+                    .fillMaxWidth()
+                    .align(Alignment.CenterHorizontally)
                     .padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -214,6 +221,10 @@ fun ChatBubble(
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+    // A bubble that spans the whole row is hard to scan, so leave a margin on the far side.
+    val maxBubbleWidth = this@BoxWithConstraints.maxWidth * 0.78f
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (message.isUser) Alignment.End else Alignment.Start
@@ -227,15 +238,17 @@ fun ChatBubble(
                     bottomStart = if (message.isUser) 16.dp else 0.dp,
                     bottomEnd = if (message.isUser) 0.dp else 16.dp
                 ),
-                modifier = Modifier.pointerInput(Unit) {
-                    detectTapGestures(
-                        onLongPress = {
-                            if (message.isUser) {
-                                showMenu = true
+                modifier = Modifier
+                    .widthIn(max = maxBubbleWidth)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onLongPress = {
+                                if (message.isUser) {
+                                    showMenu = true
+                                }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
             ) {
                 Text(
                     text = parseMarkdown(message.text),
@@ -273,6 +286,7 @@ fun ChatBubble(
             modifier = Modifier.padding(top = 4.dp),
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
     }
 }
 

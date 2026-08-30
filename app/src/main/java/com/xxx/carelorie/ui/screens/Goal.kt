@@ -1,6 +1,5 @@
 package com.xxx.carelorie.ui.screens
 
-import android.content.res.Configuration
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +26,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -37,6 +35,7 @@ import com.xxx.carelorie.ui.components.dashboard.CarelorieCalendar
 import com.xxx.carelorie.ui.components.dashboard.StreakBar
 import com.xxx.carelorie.ui.components.dashboard.WeightGraph
 import com.xxx.carelorie.ui.components.dashboard.WeightUpdateDialog
+import com.xxx.carelorie.ui.layout.isWideScreen
 import com.xxx.carelorie.ui.viewmodels.DashboardEvent
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
 import java.time.YearMonth
@@ -45,9 +44,10 @@ import java.time.YearMonth
 fun GoalScreen(navController: NavController, userId: String, viewModel: DashboardViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    
+    // Width, not orientation: a tablet held in portrait still has room for two columns, and
+    // the old orientation check gave it the phone layout.
+    val useTwoColumns = isWideScreen
+
     var selectedMonth by rememberSaveable { mutableStateOf(YearMonth.now()) }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -88,8 +88,8 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (isLandscape) {
-                // Landscape Layout
+            if (useTwoColumns) {
+                // Wide layout: calendar and weight graph side by side
                 StreakBar(streakCount = uiState.currentStreak)
 
                 Spacer(Modifier.height(16.dp))
@@ -131,7 +131,7 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
                     }
                 }
             } else {
-                // Portrait Layout
+                // Narrow layout: single column
                 CarelorieCalendar(
                     currentMonth = selectedMonth,
                     trackedDates = uiState.trackedDates,

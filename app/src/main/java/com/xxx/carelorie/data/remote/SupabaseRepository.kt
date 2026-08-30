@@ -90,51 +90,61 @@ class SupabaseRepository {
             .decodeList<RemoteFoodLog>()
     }
 
-    suspend fun fetchFoodPresets(userId: String): List<RemoteFoodPreset> = withContext(Dispatchers.IO) {
+    /**
+     * Only the presets this user created. The built-in dishes are seeded into Room rather than
+     * fetched, so they are available offline and no client writes to a table shared by everyone.
+     */
+    suspend fun fetchUserFoodPresets(userId: String): List<RemoteFoodPreset> = withContext(Dispatchers.IO) {
+        supabase.postgrest["food_presets"]
+            .select {
+                filter { eq("userId", userId) }
+            }
+            .decodeList<RemoteFoodPreset>()
+    }
+
+    /** Creates a user's own preset and returns the stored row, so its id can be cached locally. */
+    suspend fun insertFoodPreset(preset: RemoteFoodPreset): RemoteFoodPreset? = withContext(Dispatchers.IO) {
         try {
-            // Fetch user presets and system presets separately to avoid complex null-filter syntax issues
-            val userPresets = try {
-                supabase.postgrest["food_presets"]
-                    .select {
-                        filter {
-                            eq("userId", userId)
-                        }
-                    }
-                    .decodeList<RemoteFoodPreset>()
-            } catch (e: Exception) {
-                Log.e("SupabaseRepository", "Error fetching user presets", e)
-                emptyList()
-            }
-                
-            val systemPresets = try {
-                supabase.postgrest["food_presets"]
-                    .select {
-                        filter {
-                            filter("userId", FilterOperator.IS, "null")
-                        }
-                    }
-                    .decodeList<RemoteFoodPreset>()
-            } catch (e: Exception) {
-                Log.e("SupabaseRepository", "Error fetching system presets", e)
-                emptyList()
-            }
-                
-            userPresets + systemPresets
+            supabase.postgrest["food_presets"]
+                .insert(preset) { select() }
+                .decodeSingle<RemoteFoodPreset>()
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error inserting food preset: ${e.description} (Code: ${e.code})", e)
+            null
         } catch (e: Exception) {
-            Log.e("SupabaseRepository", "Critical error in fetchFoodPresets", e)
-            emptyList()
+            Log.e("SupabaseRepository", "Error inserting food preset", e)
+            null
         }
     }
 
-    suspend fun seedFoodPresets(presets: List<RemoteFoodPreset>) = withContext(Dispatchers.IO) {
+    suspend fun updateFoodPreset(preset: RemoteFoodPreset): Boolean = withContext(Dispatchers.IO) {
+        val id = preset.id ?: return@withContext false
         try {
-            supabase.postgrest["food_presets"].upsert(presets) {
-                onConflict = "name"
+            supabase.postgrest["food_presets"].update(preset) {
+                filter { eq("id", id) }
             }
+            true
         } catch (e: PostgrestRestException) {
-            Log.e("SupabaseRepository", "Postgrest error seeding food presets: ${e.description} (Code: ${e.code})", e)
+            Log.e("SupabaseRepository", "Postgrest error updating food preset: ${e.description} (Code: ${e.code})", e)
+            false
         } catch (e: Exception) {
-            Log.e("SupabaseRepository", "Error seeding food presets", e)
+            Log.e("SupabaseRepository", "Error updating food preset", e)
+            false
+        }
+    }
+
+    suspend fun deleteFoodPreset(presetId: Int): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["food_presets"].delete {
+                filter { eq("id", presetId) }
+            }
+            true
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error deleting food preset: ${e.description} (Code: ${e.code})", e)
+            false
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting food preset", e)
+            false
         }
     }
 

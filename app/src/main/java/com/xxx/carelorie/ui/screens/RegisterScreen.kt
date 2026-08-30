@@ -18,6 +18,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.xxx.carelorie.ui.layout.constrainedWidth
 import com.xxx.carelorie.ui.viewmodels.AuthUiEvent
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 
@@ -46,9 +47,13 @@ fun RegisterScreen(
         }
     }
 
+    // Centred so the form stays a readable column on a tablet instead of stretching to 10".
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxHeight()
+            .constrainedWidth()
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .statusBarsPadding()
             .padding(24.dp),
@@ -155,5 +160,6 @@ fun RegisterScreen(
         TextButton(onClick = { navController.popBackStack() }) {
             Text("Already have an account? Login")
         }
+    }
     }
 }

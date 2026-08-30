@@ -92,13 +92,20 @@ fun CarelorieCalendar(
         Spacer(Modifier.height(4.dp))
 
         // Calendar Grid
+        val cellHeight = 40.dp
         val cellModifier = Modifier
-            .height(40.dp)
+            .height(cellHeight)
             .fillMaxWidth()
-        
+
+        // The grid needs an explicit height: nesting it in a scrolling column would otherwise
+        // hand it an infinite height constraint. Derived from the rows actually present rather
+        // than hardcoded, so a five-row month doesn't leave a blank row and changing the cell
+        // height stays self-consistent.
+        val rowCount = (allCells.size + 6) / 7
+
         LazyVerticalGrid(
             columns = GridCells.Fixed(7),
-            modifier = Modifier.height(240.dp), // Fixed height to avoid infinite height in scrollable column
+            modifier = Modifier.height(cellHeight * rowCount),
             userScrollEnabled = false
         ) {
             items(allCells) { date ->

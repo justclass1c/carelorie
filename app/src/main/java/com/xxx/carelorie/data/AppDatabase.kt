@@ -6,10 +6,18 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.xxx.carelorie.data.local.FoodLogDao
 import com.xxx.carelorie.data.local.FoodLogEntity
+import com.xxx.carelorie.data.local.FoodPresetDao
+import com.xxx.carelorie.data.local.FoodPresetEntity
 
 @Database(
-    entities = [User::class, UserProfile::class, WeightRecord::class, FoodLogEntity::class],
-    version = 10,
+    entities = [
+        User::class,
+        UserProfile::class,
+        WeightRecord::class,
+        FoodLogEntity::class,
+        FoodPresetEntity::class
+    ],
+    version = 11,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -17,6 +25,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userProfileDao(): UserProfileDao
     abstract fun weightDao(): WeightDao
     abstract fun foodLogDao(): FoodLogDao
+    abstract fun foodPresetDao(): FoodPresetDao
 
     companion object {
         @Volatile

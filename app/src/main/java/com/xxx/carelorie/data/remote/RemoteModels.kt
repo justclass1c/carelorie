@@ -36,8 +36,12 @@ data class RemoteFoodLog(
 data class RemoteFoodPreset(
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val id: Int? = null,
+    /** null marks a built-in preset shared by every user. */
     val userId: String? = null,
     val name: String = "",
+    val brand: String? = null,
+    /** Free text, e.g. "1 plate (350 g)". Macros above are per one of these. */
+    val servingDescription: String? = null,
     val calories: Int = 0,
     val protein: Float = 0f,
     val carbs: Float = 0f,
