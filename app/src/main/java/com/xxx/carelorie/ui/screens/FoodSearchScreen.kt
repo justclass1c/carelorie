@@ -13,8 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -177,8 +177,8 @@ fun FoodSearchScreen(
                 )
                 AssistChip(
                     onClick = { viewModel.onEvent(FoodSearchEvent.AiSearch) },
-                    label = { Text("A.I") },
-                    leadingIcon = { Icon(Icons.Default.PhotoCamera, null, Modifier.size(18.dp)) }
+                    label = { Text("Search With AI") },
+                    leadingIcon = { Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp)) },
                 )
             }
 
