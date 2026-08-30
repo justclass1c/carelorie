@@ -26,7 +26,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +45,7 @@ import com.xxx.carelorie.ui.components.dashboard.MacroCard
 import com.xxx.carelorie.ui.components.dashboard.MacroRow
 import com.xxx.carelorie.ui.components.dashboard.MealSection
 import com.xxx.carelorie.ui.components.dashboard.ProgressPreview
+import com.xxx.carelorie.ui.layout.isWideScreen
 import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.ui.viewmodels.DashboardEvent
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
@@ -56,9 +56,9 @@ import java.time.format.DateTimeFormatter
 fun Dashboard(
     navController: NavController,
     userId: String,
-    viewModel: DashboardViewModel,
-    widthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact
+    viewModel: DashboardViewModel
 ) {
+    val wide = isWideScreen
     val uiState by viewModel.uiState.collectAsState()
     val currentDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMMM"))
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -92,10 +92,11 @@ fun Dashboard(
         return
     }
 
-    if (uiState.error != null) {
+    val error = uiState.error
+    if (error != null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(uiState.error!!, color = MaterialTheme.colorScheme.error)
+                Text(error, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { viewModel.onEvent(DashboardEvent.LoadData(userId)) }) {
                     Text("Try again")
@@ -135,13 +136,13 @@ fun Dashboard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Top
             ) {
-                if (widthSizeClass == WindowWidthSizeClass.Compact) {
+                if (!wide) {
                     // Phone Layout: Vertical stack
-                    ProgressPreview(weeklyData = uiState.weeklyIntake)
+                    ProgressPreview(weeklyData = uiState.weeklyIntake, targets = uiState.targets)
 
                     Spacer(Modifier.height(20.dp))
 
-                    MacroRow(todayIntake = uiState.todayIntake)
+                    MacroRow(todayIntake = uiState.todayIntake, targets = uiState.targets)
                 } else {
                     // Tablet Layout: Side-by-side centered
                     Row(
@@ -154,6 +155,7 @@ fun Dashboard(
                         // Left: Calendar Chart (Sets the height)
                         ProgressPreview(
                             weeklyData = uiState.weeklyIntake,
+                            targets = uiState.targets,
                             modifier = Modifier.weight(0.5f)
                         )
 
@@ -171,15 +173,15 @@ fun Dashboard(
                                 modifier = Modifier.weight(1f),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                MacroCard("Protein", uiState.todayIntake.protein.toInt(), 120, Modifier.fillMaxHeight().aspectRatio(1f))
-                                MacroCard("Carbs", uiState.todayIntake.carbs.toInt(), 200, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Protein", uiState.todayIntake.protein, uiState.targets.proteinGrams, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Carbs", uiState.todayIntake.carbs, uiState.targets.carbsGrams, Modifier.fillMaxHeight().aspectRatio(1f))
                             }
                             Row(
                                 modifier = Modifier.weight(1f),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                MacroCard("Fat", uiState.todayIntake.fat.toInt(), 50, Modifier.fillMaxHeight().aspectRatio(1f))
-                                MacroCard("Calories", uiState.todayIntake.calories, 1700, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Fat", uiState.todayIntake.fat, uiState.targets.fatGrams, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Calories", uiState.todayIntake.calories.toFloat(), uiState.targets.calories.toFloat(), Modifier.fillMaxHeight().aspectRatio(1f))
                             }
                         }
                     }
@@ -190,7 +192,7 @@ fun Dashboard(
                 MealSection(
                     todayLogs = uiState.todayLogs,
                     onAddMealClick = { mealType ->
-                        navController.navigate("foodSearch/$mealType")
+                        navController.navigate(Routes.foodSearch(mealType))
                     },
                     onDeleteLog = { log ->
                         viewModel.onEvent(DashboardEvent.DeleteLog(userId, log))

@@ -10,9 +10,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.xxx.carelorie.data.DailyMacroIntake
+import com.xxx.carelorie.data.NutritionTargets
 
 @Composable
-fun ProgressPreview(weeklyData: List<DailyMacroIntake>, modifier: Modifier = Modifier) {
+fun ProgressPreview(
+    weeklyData: List<DailyMacroIntake>,
+    targets: NutritionTargets,
+    modifier: Modifier = Modifier
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -20,6 +25,6 @@ fun ProgressPreview(weeklyData: List<DailyMacroIntake>, modifier: Modifier = Mod
         modifier = modifier.fillMaxWidth(),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
-        WeeklyMacroChart(data = weeklyData)
+        WeeklyMacroChart(data = weeklyData, targets = targets)
     }
 }

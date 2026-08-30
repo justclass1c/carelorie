@@ -26,7 +26,7 @@ object CarelorieViewModelFactories {
     val Profile = viewModelFactory {
         initializer {
             val c = container()
-            ProfileViewModel(c.userRepository, c.sessionManager)
+            ProfileViewModel(c.userRepository, c.sessionManager, c.themeManager)
         }
     }
 
@@ -54,7 +54,25 @@ object CarelorieViewModelFactories {
     }
 
     val FoodLog = viewModelFactory {
-        initializer { FoodLogViewModel(container().foodRepository) }
+        initializer {
+            val c = container()
+            FoodLogViewModel(c.foodRepository, c.userRepository)
+        }
+    }
+
+    val FoodQuery = viewModelFactory {
+        initializer {
+            val c = container()
+            FoodQueryViewModel(
+                foodRepository = c.foodRepository,
+                openFoodFacts = c.openFoodFactsService,
+                recognitionService = c.foodRecognitionService
+            )
+        }
+    }
+
+    val FoodEditor = viewModelFactory {
+        initializer { FoodEditorViewModel(container().foodRepository) }
     }
 
     fun DietChat(userId: String) = viewModelFactory {

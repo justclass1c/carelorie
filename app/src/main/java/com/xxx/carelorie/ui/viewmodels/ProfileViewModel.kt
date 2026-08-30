@@ -3,6 +3,7 @@ package com.xxx.carelorie.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xxx.carelorie.data.SessionManager
+import com.xxx.carelorie.data.ThemeManager
 import com.xxx.carelorie.data.UserProfile
 import com.xxx.carelorie.data.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,11 @@ data class ProfileUiState(
     val height: String = "",
     val weight: String = "",
     val liftingExperience: String = "",
+    val theme: String = "system",
+    val calorieLimit: String = "",
+    val proteinLimit: String = "",
+    val carbsLimit: String = "",
+    val fatLimit: String = "",
     val isEditMode: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -37,17 +43,24 @@ sealed class ProfileUiEvent {
     data class HeightChanged(val height: String) : ProfileUiEvent()
     data class WeightChanged(val weight: String) : ProfileUiEvent()
     data class ExperienceChanged(val experience: String) : ProfileUiEvent()
+    data class ThemeChanged(val theme: String) : ProfileUiEvent()
+    data class CalorieLimitChanged(val value: String) : ProfileUiEvent()
+    data class ProteinLimitChanged(val value: String) : ProfileUiEvent()
+    data class CarbsLimitChanged(val value: String) : ProfileUiEvent()
+    data class FatLimitChanged(val value: String) : ProfileUiEvent()
     data class CancelEdit(val userId: String) : ProfileUiEvent()
     object ToggleEditMode : ProfileUiEvent()
     object SaveProfile : ProfileUiEvent()
     object Logout : ProfileUiEvent()
+    object DeleteAccount : ProfileUiEvent()
     object ErrorConsumed : ProfileUiEvent()
     object ResetSaveStatus : ProfileUiEvent()
 }
 
 class ProfileViewModel(
     private val repository: UserRepository,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val themeManager: ThemeManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProfileUiState())
@@ -62,10 +75,16 @@ class ProfileViewModel(
             is ProfileUiEvent.HeightChanged -> _uiState.update { it.copy(height = event.height) }
             is ProfileUiEvent.WeightChanged -> _uiState.update { it.copy(weight = event.weight) }
             is ProfileUiEvent.ExperienceChanged -> _uiState.update { it.copy(liftingExperience = event.experience) }
+            is ProfileUiEvent.ThemeChanged -> onThemeChanged(event.theme)
+            is ProfileUiEvent.CalorieLimitChanged -> _uiState.update { it.copy(calorieLimit = event.value) }
+            is ProfileUiEvent.ProteinLimitChanged -> _uiState.update { it.copy(proteinLimit = event.value) }
+            is ProfileUiEvent.CarbsLimitChanged -> _uiState.update { it.copy(carbsLimit = event.value) }
+            is ProfileUiEvent.FatLimitChanged -> _uiState.update { it.copy(fatLimit = event.value) }
             is ProfileUiEvent.CancelEdit -> cancelEdit(event.userId)
             is ProfileUiEvent.ToggleEditMode -> _uiState.update { it.copy(isEditMode = !it.isEditMode) }
             is ProfileUiEvent.SaveProfile -> saveProfile()
             is ProfileUiEvent.Logout -> logout()
+            is ProfileUiEvent.DeleteAccount -> deleteAccount()
             is ProfileUiEvent.ErrorConsumed -> _uiState.update { it.copy(errorMessage = null) }
             is ProfileUiEvent.ResetSaveStatus -> _uiState.update { it.copy(isSaveSuccess = false) }
         }
@@ -76,11 +95,20 @@ class ProfileViewModel(
         _uiState.update { it.copy(isLoggedOut = true) }
     }
 
+    private fun deleteAccount() {
+        viewModelScope.launch {
+            repository.deleteAccount(_uiState.value.userId)
+            sessionManager.clearSession()
+            _uiState.update { it.copy(isLoggedOut = true) }
+        }
+    }
+
     private fun loadProfile(userId: String, isOnboarding: Boolean) {
         _uiState.update { it.copy(userId = userId, isLoading = true, isOnboarding = isOnboarding) }
         viewModelScope.launch {
             val profile = repository.getProfile(userId)
             if (profile != null) {
+                themeManager.setThemeMode(profile.theme)
                 _uiState.update {
                     it.copy(
                         name = profile.name,
@@ -89,6 +117,11 @@ class ProfileViewModel(
                         height = profile.height,
                         weight = profile.weight?.toString() ?: "",
                         liftingExperience = profile.liftingExperience,
+                        theme = profile.theme,
+                        calorieLimit = profile.calorieLimit.toString(),
+                        proteinLimit = formatFloat(profile.proteinLimit),
+                        carbsLimit = formatFloat(profile.carbsLimit),
+                        fatLimit = formatFloat(profile.fatLimit),
                         isLoading = false,
                         isEditMode = if (isOnboarding) true else it.isEditMode
                     )
@@ -98,6 +131,17 @@ class ProfileViewModel(
             }
         }
     }
+
+    private fun onThemeChanged(theme: String) {
+        _uiState.update { it.copy(theme = theme) }
+        themeManager.setThemeMode(theme)
+        viewModelScope.launch {
+            repository.updateTheme(_uiState.value.userId, theme)
+        }
+    }
+
+    private fun formatFloat(value: Float): String =
+        if (value == value.toInt().toFloat()) value.toInt().toString() else value.toString()
 
     private fun cancelEdit(userId: String) {
         // Exit edit mode and reload the saved profile so any unsaved changes are discarded.
@@ -144,6 +188,23 @@ class ProfileViewModel(
             return
         }
 
+        if (state.calorieLimit.isNotEmpty() && state.calorieLimit.toIntOrNull() == null) {
+            _uiState.update { it.copy(errorMessage = "Calorie limit must be a number") }
+            return
+        }
+        if (state.proteinLimit.isNotEmpty() && state.proteinLimit.toFloatOrNull() == null) {
+            _uiState.update { it.copy(errorMessage = "Protein limit must be a number") }
+            return
+        }
+        if (state.carbsLimit.isNotEmpty() && state.carbsLimit.toFloatOrNull() == null) {
+            _uiState.update { it.copy(errorMessage = "Carbs limit must be a number") }
+            return
+        }
+        if (state.fatLimit.isNotEmpty() && state.fatLimit.toFloatOrNull() == null) {
+            _uiState.update { it.copy(errorMessage = "Fat limit must be a number") }
+            return
+        }
+
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             val profile = UserProfile(
@@ -153,7 +214,12 @@ class ProfileViewModel(
                 gender = state.gender,
                 height = state.height,
                 weight = state.weight.toFloatOrNull(),
-                liftingExperience = state.liftingExperience
+                liftingExperience = state.liftingExperience,
+                theme = state.theme,
+                calorieLimit = state.calorieLimit.toIntOrNull() ?: 2000,
+                proteinLimit = state.proteinLimit.toFloatOrNull() ?: 120f,
+                carbsLimit = state.carbsLimit.toFloatOrNull() ?: 200f,
+                fatLimit = state.fatLimit.toFloatOrNull() ?: 65f
             )
             repository.saveProfile(profile)
             _uiState.update { it.copy(isLoading = false, isEditMode = false, isSaveSuccess = true, isOnboarding = false) }

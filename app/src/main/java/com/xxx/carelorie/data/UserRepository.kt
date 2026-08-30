@@ -4,6 +4,8 @@ import com.xxx.carelorie.data.remote.RemoteUser
 import com.xxx.carelorie.data.remote.RemoteUserProfile
 import com.xxx.carelorie.data.remote.RemoteWeightRecord
 import com.xxx.carelorie.data.remote.SupabaseRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 class UserRepository(
@@ -18,27 +20,40 @@ class UserRepository(
     fun clearSession() = sessionManager.clearSession()
     fun hasSession(): Boolean = getSessionUserId().isNotEmpty()
 
+    /**
+     * Creates an account.
+     *
+     * Local first, on purpose. [User.userId] is a UUID generated on the device, so Supabase is a
+     * mirror of the account rather than the source of its identity — the previous version round
+     * tripped that UUID through the server and treated a failed round trip as a failed
+     * registration, which meant no connection meant no account at all.
+     *
+     * The push is best effort. An account created offline reaches Supabase on the next successful
+     * sign-in (see [getUserByEmail]).
+     */
     suspend fun registerUser(user: User): Result<String> {
         return try {
-            // 1. Sync to Supabase first to get a global unique ID
-            val remoteUser = RemoteUser(
-                userId = user.userId,
-                email = user.email,
-                password = user.password
-            )
-            val registeredRemote = supabaseRepository.insertUser(remoteUser)
-                ?: return Result.failure(Exception("Supabase registration failed"))
-            
-            val globalUserId = registeredRemote.userId ?: return Result.failure(Exception("No userId returned"))
-            
-            // 2. Save locally with the same ID
-            val localUser = user.copy(userId = globalUserId)
-            userDao.insertUser(localUser)
-            
-            Result.success(globalUserId)
+            val stored = user.copy(password = hashPassword(user.password))
+            userDao.insertUser(stored)
+            pushUser(stored)
+            Result.success(stored.userId)
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Verifies credentials.
+     *
+     * Comparison lives here rather than in the ViewModel so the stored hash never travels further
+     * into the app than it has to.
+     */
+    suspend fun authenticate(email: String, password: String): User? {
+        val user = getUserByEmail(email) ?: return null
+        val matches = withContext(Dispatchers.Default) {
+            PasswordHasher.verify(password, user.password)
+        }
+        return if (matches) user else null
     }
 
     suspend fun getUserByEmail(email: String): User? {
@@ -55,9 +70,26 @@ class UserRepository(
             syncProfileWithRemote(remote.userId)
             return user
         }
-        
-        // 2. Fallback to local
-        return userDao.getUserByEmail(email)
+
+        // 2. Fall back to local. Reaching here means either no connection, or an account that was
+        //    created offline and has never been pushed — so retry the push, which is what lets a
+        //    registration made on a dead network heal itself.
+        val local = userDao.getUserByEmail(email) ?: return null
+        pushUser(local)
+        return local
+    }
+
+    /** Best-effort mirror of a local account to Supabase. Failure is expected and ignored. */
+    private suspend fun pushUser(user: User) {
+        runCatching {
+            supabaseRepository.insertUser(
+                RemoteUser(userId = user.userId, email = user.email, password = user.password)
+            )
+        }
+    }
+
+    private suspend fun hashPassword(raw: String): String = withContext(Dispatchers.Default) {
+        PasswordHasher.hash(raw)
     }
 
     suspend fun syncProfileWithRemote(userId: String) {
@@ -72,7 +104,12 @@ class UserRepository(
                     height = remote.height,
                     liftingExperience = remote.liftingExperience,
                     weight = remote.weight,
-                    weightAdvice = remote.weightAdvice
+                    weightAdvice = remote.weightAdvice,
+                    theme = remote.theme,
+                    calorieLimit = remote.calorieLimit,
+                    proteinLimit = remote.proteinLimit,
+                    carbsLimit = remote.carbsLimit,
+                    fatLimit = remote.fatLimit
                 )
                 userProfileDao.insertOrUpdateProfile(profile)
             }
@@ -84,18 +121,21 @@ class UserRepository(
     suspend fun saveProfile(profile: UserProfile) {
         val existing = userProfileDao.getProfileByUserId(profile.userId)
 
-        // 1. Save locally
-        userProfileDao.insertOrUpdateProfile(profile)
+        persistProfile(profile)
 
-        // 2. Sync to remote
-        supabaseRepository.upsertProfile(toRemoteProfile(profile))
-
-        // 3. If the weight changed here (profile page), record it in the weight table
-        //    so the graph on the goal page stays up to date no matter where it was edited.
+        // If the weight changed here (profile page), record it in the weight table
+        // so the graph on the goal page stays up to date no matter where it was edited.
         val newWeight = profile.weight
         if (newWeight != null && newWeight != existing?.weight) {
             saveWeight(profile.userId, newWeight, LocalDate.now().toString())
         }
+    }
+
+    private suspend fun persistProfile(profile: UserProfile) {
+        // Save locally
+        userProfileDao.insertOrUpdateProfile(profile)
+        // Sync to remote
+        supabaseRepository.upsertProfile(toRemoteProfile(profile))
     }
 
     private fun toRemoteProfile(profile: UserProfile): RemoteUserProfile = RemoteUserProfile(
@@ -106,8 +146,28 @@ class UserRepository(
         height = profile.height,
         liftingExperience = profile.liftingExperience,
         weight = profile.weight,
-        weightAdvice = profile.weightAdvice
+        weightAdvice = profile.weightAdvice,
+        theme = profile.theme,
+        calorieLimit = profile.calorieLimit,
+        proteinLimit = profile.proteinLimit,
+        carbsLimit = profile.carbsLimit,
+        fatLimit = profile.fatLimit
     )
+
+    suspend fun updateTheme(userId: String, theme: String) {
+        val profile = getProfile(userId) ?: return
+        persistProfile(profile.copy(theme = theme))
+    }
+
+    suspend fun deleteAccount(userId: String) {
+        // Local cleanup
+        userDao.deleteUser(userId)
+        userProfileDao.deleteProfile(userId)
+        weightDao.deleteWeightRecords(userId)
+        // Remote cleanup
+        supabaseRepository.deleteProfile(userId)
+        supabaseRepository.deleteUser(userId)
+    }
 
     suspend fun getProfile(userId: String): UserProfile? {
         // Sync with remote first if possible to ensure we have latest data

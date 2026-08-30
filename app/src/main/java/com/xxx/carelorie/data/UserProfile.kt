@@ -12,5 +12,17 @@ data class UserProfile(
     val height: String = "",
     val liftingExperience: String = "",
     val weight: Float? = null,
-    val weightAdvice: String? = null
-)
+    val weightAdvice: String? = null,
+    val theme: String = "system",
+    val calorieLimit: Int = 2000,
+    val proteinLimit: Float = 120f,
+    val carbsLimit: Float = 200f,
+    val fatLimit: Float = 65f
+) {
+    fun toNutritionTargets(): NutritionTargets = NutritionTargets(
+        calories = calorieLimit,
+        proteinGrams = proteinLimit,
+        carbsGrams = carbsLimit,
+        fatGrams = fatLimit
+    )
+}

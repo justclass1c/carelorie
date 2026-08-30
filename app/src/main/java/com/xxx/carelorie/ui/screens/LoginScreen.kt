@@ -19,6 +19,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.xxx.carelorie.Routes
+import com.xxx.carelorie.ui.layout.constrainedWidth
 import com.xxx.carelorie.ui.theme.CarelorieTheme
 import com.xxx.carelorie.ui.viewmodels.AuthUiEvent
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
@@ -43,9 +45,13 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
         }
     }
 
+    // Centred so the form stays a readable column on a tablet instead of stretching to 10".
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxHeight()
+            .constrainedWidth()
+            .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .statusBarsPadding()
             .padding(24.dp),
@@ -112,7 +118,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
             horizontalArrangement = Arrangement.Center
         ) {
             Button(
-                onClick = { navController.navigate("register") },
+                onClick = { navController.navigate(Routes.REGISTER) },
                 shape = RoundedCornerShape(20.dp),
                 contentPadding = PaddingValues(vertical = 12.dp, horizontal = 36.dp),
             ) {
@@ -136,6 +142,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
                 }
             }
         }
+    }
     }
 }
 

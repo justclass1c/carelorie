@@ -20,6 +20,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.xxx.carelorie.data.nutrition.FoodCandidate
 import com.xxx.carelorie.data.nutrition.NutritionDetail
+import com.xxx.carelorie.ui.layout.ContentWidth
+import com.xxx.carelorie.ui.layout.constrainedWidth
+import com.xxx.carelorie.ui.layout.isExpandedScreen
 import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.ui.viewmodels.FoodSearchEvent
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
@@ -89,12 +92,31 @@ fun ReviewFoodsScreen(
                             Text("Add more")
                         }
                     }
+                    if (isAiMode) {
+                        // An AI estimate is worth keeping, so this saves it to the library
+                        // rather than logging it — which is what the button always said it did.
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.onEvent(FoodSearchEvent.SaveSelectedAsPresets(userId))
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = uiState.hasSelection && !uiState.isLoading
+                        ) {
+                            Text("Save to Food Query")
+                        }
+                    }
                     Button(
                         onClick = { viewModel.onEvent(FoodSearchEvent.LogSelected(userId)) },
                         modifier = Modifier.weight(1f),
                         enabled = uiState.hasSelection && !uiState.isLoading
                     ) {
-                        Text(if (isAiMode) "Save Preset" else "Log ${uiState.selectedCount} to ${uiState.mealType}")
+                        Text(
+                            if (isAiMode) {
+                                "Log to ${uiState.mealType}"
+                            } else {
+                                "Log ${uiState.selectedCount} to ${uiState.mealType}"
+                            }
+                        )
                     }
                 }
             }
@@ -116,20 +138,12 @@ fun ReviewFoodsScreen(
             return@Scaffold
         }
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            if (!isAiMode) {
-                TotalsCard(uiState.totalCalories, uiState.totalProtein, uiState.totalCarbs, uiState.totalFat)
-                Spacer(Modifier.height(16.dp))
-            }
+        val listToShow = if (isAiMode) uiState.selectedList.take(1) else uiState.selectedList
+        val showTotals = !isAiMode
+        // Expanded windows can hold the running total in view while the list scrolls.
+        val totalsBesideList = showTotals && isExpandedScreen
 
-            val listToShow = if (isAiMode) uiState.selectedList.take(1) else uiState.selectedList
-
+        val candidateCards: @Composable ColumnScope.() -> Unit = {
             listToShow.forEach { candidate ->
                 CandidateCard(
                     candidate = candidate,
@@ -140,8 +154,62 @@ fun ReviewFoodsScreen(
                 )
                 Spacer(Modifier.height(12.dp))
             }
+        }
 
-            Spacer(Modifier.height(24.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            if (totalsBesideList) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .constrainedWidth(ContentWidth.Reading)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        content = candidateCards
+                    )
+                    Box(Modifier.weight(0.6f)) {
+                        TotalsCard(
+                            uiState.totalCalories,
+                            uiState.totalProtein,
+                            uiState.totalCarbs,
+                            uiState.totalFat
+                        )
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .constrainedWidth()
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp)
+                ) {
+                    if (showTotals) {
+                        TotalsCard(
+                            uiState.totalCalories,
+                            uiState.totalProtein,
+                            uiState.totalCarbs,
+                            uiState.totalFat
+                        )
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    candidateCards()
+
+                    Spacer(Modifier.height(24.dp))
+                }
+            }
         }
     }
 }

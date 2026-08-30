@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.xxx.carelorie.data.DailyMacroIntake
 import com.xxx.carelorie.data.FoodRepository
 import com.xxx.carelorie.data.MacroDataRepository
+import com.xxx.carelorie.data.NutritionTargets
 import com.xxx.carelorie.data.UserRepository
 import com.xxx.carelorie.data.remote.DeepSeekService
 import com.xxx.carelorie.data.remote.HealthContext
@@ -30,6 +31,10 @@ data class DashboardUiState(
     val weightHistory: List<WeightRecord> = emptyList(),
     val currentStreak: Int = 0,
     val trackedDates: Set<LocalDate> = emptySet(),
+    val weightHistory: List<WeightRecord> = emptyList(),
+    val currentStreak: Int = 0,
+    val trackedDates: Set<LocalDate> = emptySet(),
+    val targets: NutritionTargets = NutritionTargets.DEFAULT,
     val weightAdvice: String? = null,
     val goalInsight: String? = null,
     val isGoalInsightLoading: Boolean = false,
@@ -123,9 +128,11 @@ class DashboardViewModel(
                 // elsewhere are reflected immediately without waiting for the next refresh.
                 observeTodayLogs(userId)
                 
-                // Weekly Data (last 7 days)
+                // Weekly Data — the current calendar week, Sunday to Saturday,
+                // regardless of which day "today" falls on.
+                val weekStart = today.minusDays((today.dayOfWeek.value % 7).toLong())
                 val weeklyData = (0..6).map { i ->
-                    val date = today.minusDays(i.toLong())
+                    val date = weekStart.plusDays(i.toLong())
                     val logsForDay = logsByDate[date.toString()] ?: emptyList()
                     
                     DailyMacroIntake(
@@ -181,6 +188,7 @@ class DashboardViewModel(
                         weightHistory = weightHistory,
                         currentStreak = streak,
                         trackedDates = trackedDates,
+                        targets = profile?.toNutritionTargets() ?: NutritionTargets.DEFAULT,
                         weightAdvice = profile?.weightAdvice,
                         isLoading = false
                     )

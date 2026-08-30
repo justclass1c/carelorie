@@ -19,6 +19,7 @@ class AppContainer(context: Context) {
     private val database: AppDatabase = AppDatabase.getDatabase(context)
     private val supabaseRepository: SupabaseRepository = SupabaseRepository()
     val sessionManager: SessionManager = SessionManager(context)
+    val themeManager: ThemeManager = ThemeManager(context)
 
     val userRepository: UserRepository by lazy {
         UserRepository(
@@ -35,7 +36,7 @@ class AppContainer(context: Context) {
     }
 
     val foodRepository: FoodRepository by lazy {
-        FoodRepository(supabaseRepository, database.foodLogDao())
+        FoodRepository(supabaseRepository, database.foodLogDao(), database.foodPresetDao())
     }
 
     val openFoodFactsService: OpenFoodFactsService by lazy { OpenFoodFactsService() }

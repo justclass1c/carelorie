@@ -12,4 +12,7 @@ interface UserProfileDao {
 
     @Query("SELECT * FROM user_profiles WHERE userId = :userId LIMIT 1")
     suspend fun getProfileByUserId(userId: String): UserProfile?
+
+    @Query("DELETE FROM user_profiles WHERE userId = :userId")
+    suspend fun deleteProfile(userId: String)
 }

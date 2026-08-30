@@ -18,4 +18,7 @@ interface WeightDao {
 
     @Query("SELECT * FROM weight_records WHERE userId = :userId AND date LIKE :month || '%' ORDER BY date ASC")
     suspend fun getWeightRecordsForMonth(userId: String, month: String): List<WeightRecord>
+
+    @Query("DELETE FROM weight_records WHERE userId = :userId")
+    suspend fun deleteWeightRecords(userId: String)
 }

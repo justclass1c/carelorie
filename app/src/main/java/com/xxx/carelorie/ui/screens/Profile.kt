@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
@@ -17,11 +18,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
+import com.xxx.carelorie.Routes
+import com.xxx.carelorie.data.ThemeManager
+import com.xxx.carelorie.ui.layout.ContentWidth
+import com.xxx.carelorie.ui.layout.constrainedWidth
+import com.xxx.carelorie.ui.layout.isExpandedScreen
 import com.xxx.carelorie.ui.viewmodels.ProfileUiEvent
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
@@ -30,6 +37,8 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(userId) {
         viewModel.onEvent(ProfileUiEvent.LoadProfile(userId, isOnboarding))
@@ -67,16 +76,33 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
 
     LaunchedEffect(uiState.isLoggedOut) {
         if (uiState.isLoggedOut) {
-            navController.navigate("login") {
+            navController.navigate(Routes.LOGIN) {
                 popUpTo(0)
             }
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    LaunchedEffect(uiState.isSaveSuccess) {
+        if (!uiState.isSaveSuccess) return@LaunchedEffect
+        if (isOnboarding) {
+            // Finish the sign-up flow instead of leaving the new user parked on this form with
+            // no sign that they were done. popUpTo(0) so back cannot return to onboarding.
+            navController.navigate(Routes.DASHBOARD) { popUpTo(0) }
+        }
+        // Consume it either way, so an ordinary profile edit doesn't leave the flag set.
+        viewModel.onEvent(ProfileUiEvent.ResetSaveStatus)
+    }
+
+    // Expanded windows have room to show Personal and Macros at once, so the tab row only
+    // earns its place on narrower screens.
+    val twoColumnSections = isExpandedScreen
+
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .constrainedWidth(if (twoColumnSections) ContentWidth.Reading else ContentWidth.Form)
+                .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
@@ -141,9 +167,100 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
 
             Spacer(Modifier.height(15.dp))
 
-            if (uiState.isEditMode) {
-                ProfileEditSection(uiState = uiState, onEvent = viewModel::onEvent)
+            val tabs = if (twoColumnSections) listOf("Details", "Settings") else listOf("Personal", "Macros", "Settings")
 
+            // Resizing across the breakpoint changes how many tabs there are, so clamp rather
+            // than leaving no tab highlighted on the frame the window changes.
+            val activeTab = selectedTab.coerceAtMost(tabs.lastIndex)
+
+            PrimaryTabRow(selectedTabIndex = activeTab) {
+                tabs.forEachIndexed { index, label ->
+                    Tab(
+                        selected = activeTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(label) }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            val settingsTabIndex = tabs.lastIndex
+
+            when {
+                activeTab == 0 && twoColumnSections -> {
+                    // Wide: personal details and macro limits share the row instead of
+                    // hiding behind separate tabs.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        Box(Modifier.weight(1f)) {
+                            if (uiState.isEditMode) {
+                                ProfileEditSection(uiState = uiState, onEvent = viewModel::onEvent)
+                            } else {
+                                ProfileViewSection(uiState = uiState)
+                            }
+                        }
+                        Box(Modifier.weight(1f)) {
+                            if (uiState.isEditMode) {
+                                MacroLimitsEditSection(uiState = uiState, onEvent = viewModel::onEvent)
+                            } else {
+                                MacroLimitsView(uiState = uiState)
+                            }
+                        }
+                    }
+                }
+
+                activeTab == 0 -> {
+                    if (uiState.isEditMode) {
+                        ProfileEditSection(uiState = uiState, onEvent = viewModel::onEvent)
+                    } else {
+                        ProfileViewSection(uiState = uiState)
+                    }
+                }
+
+                activeTab < settingsTabIndex -> {
+                    if (uiState.isEditMode) {
+                        MacroLimitsEditSection(uiState = uiState, onEvent = viewModel::onEvent)
+                    } else {
+                        MacroLimitsView(uiState = uiState)
+                    }
+                }
+
+                else -> {
+                    ThemeSection(
+                        theme = uiState.theme,
+                        onThemeChange = { viewModel.onEvent(ProfileUiEvent.ThemeChanged(it)) }
+                    )
+                    if (!uiState.isEditMode) {
+                        // Food Query used to be linked from here; it is a nav tab now, so a
+                        // second link from a sibling top-level destination is just clutter.
+                        Spacer(Modifier.height(24.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.onEvent(ProfileUiEvent.Logout) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Logout")
+                            }
+
+                            OutlinedButton(
+                                onClick = { showDeleteDialog = true },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Text("Delete Account")
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (uiState.isEditMode) {
                 Spacer(Modifier.height(24.dp))
 
                 Button(
@@ -160,20 +277,29 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                         Text("Save Profile")
                     }
                 }
-            } else {
-                ProfileViewSection(uiState = uiState)
-
-                Spacer(Modifier.height(32.dp))
-
-                OutlinedButton(
-                    onClick = { viewModel.onEvent(ProfileUiEvent.Logout) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("Logout")
-                }
             }
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Account") },
+            text = { Text("This will permanently delete your profile and all your data. This cannot be undone.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        viewModel.onEvent(ProfileUiEvent.DeleteAccount)
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -191,6 +317,19 @@ fun ProfileViewSection(uiState: com.xxx.carelorie.ui.viewmodels.ProfileUiState) 
         ProfileInfoRow(label = "Weight", value = if (uiState.weight.isNotEmpty()) "${uiState.weight} kg" else "")
         HorizontalDivider(Modifier.padding(vertical = 15.dp))
         ProfileInfoRow(label = "Lifting Experience", value = if (uiState.liftingExperience.isNotEmpty()) "${uiState.liftingExperience} years" else "")
+    }
+}
+
+@Composable
+fun MacroLimitsView(uiState: com.xxx.carelorie.ui.viewmodels.ProfileUiState) {
+    Column {
+        ProfileInfoRow(label = "Calories", value = "${uiState.calorieLimit.ifEmpty { "-" }} kcal")
+        HorizontalDivider(Modifier.padding(vertical = 15.dp))
+        ProfileInfoRow(label = "Protein", value = "${uiState.proteinLimit.ifEmpty { "-" }} g")
+        HorizontalDivider(Modifier.padding(vertical = 15.dp))
+        ProfileInfoRow(label = "Carbs", value = "${uiState.carbsLimit.ifEmpty { "-" }} g")
+        HorizontalDivider(Modifier.padding(vertical = 15.dp))
+        ProfileInfoRow(label = "Fat", value = "${uiState.fatLimit.ifEmpty { "-" }} g")
     }
 }
 
@@ -249,6 +388,73 @@ fun ProfileEditSection(
             label = { Text("Lifting Experience (years)") },
             modifier = Modifier.fillMaxWidth()
         )
+    }
+}
+
+@Composable
+fun MacroLimitsEditSection(
+    uiState: com.xxx.carelorie.ui.viewmodels.ProfileUiState,
+    onEvent: (ProfileUiEvent) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        OutlinedTextField(
+            value = uiState.calorieLimit,
+            onValueChange = { onEvent(ProfileUiEvent.CalorieLimitChanged(it)) },
+            label = { Text("Calories (kcal)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.proteinLimit,
+            onValueChange = { onEvent(ProfileUiEvent.ProteinLimitChanged(it)) },
+            label = { Text("Protein (g)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.carbsLimit,
+            onValueChange = { onEvent(ProfileUiEvent.CarbsLimitChanged(it)) },
+            label = { Text("Carbs (g)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = uiState.fatLimit,
+            onValueChange = { onEvent(ProfileUiEvent.FatLimitChanged(it)) },
+            label = { Text("Fat (g)") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+fun ThemeSection(theme: String, onThemeChange: (String) -> Unit) {
+    val options = listOf(
+        ThemeManager.THEME_SYSTEM to "System",
+        ThemeManager.THEME_LIGHT to "Light",
+        ThemeManager.THEME_DARK to "Dark"
+    )
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Theme",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { (value, label) ->
+                FilterChip(
+                    selected = theme == value,
+                    onClick = { onThemeChange(value) },
+                    label = { Text(label) }
+                )
+            }
+        }
     }
 }
 

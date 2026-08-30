@@ -131,7 +131,10 @@ class DietChatViewModel(
         if (weight == weight.toInt().toFloat()) weight.toInt().toString() else weight.toString()
 
     private suspend fun callDeepSeek(prompt: String, profile: com.xxx.carelorie.data.UserProfile?, weightHistory: List<com.xxx.carelorie.data.WeightRecord>): String = withContext(Dispatchers.IO) {
-        if (apiKey.isBlank()) return@withContext "I'm sorry, I can't provide advice right now as the AI service is not configured."
+        if (apiKey.isBlank()) {
+            return@withContext "The AI assistant is not configured yet. Add DEEPSEEK_API_KEY to " +
+                "local.properties and rebuild the app to enable it."
+        }
 
         val url = "https://api.deepseek.com/chat/completions"
         

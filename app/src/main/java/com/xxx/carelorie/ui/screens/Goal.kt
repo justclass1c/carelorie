@@ -51,6 +51,7 @@ import com.xxx.carelorie.ui.components.dashboard.CarelorieCalendar
 import com.xxx.carelorie.ui.components.dashboard.StreakBar
 import com.xxx.carelorie.ui.components.dashboard.WeightGraph
 import com.xxx.carelorie.ui.components.dashboard.WeightUpdateDialog
+import com.xxx.carelorie.ui.layout.isWideScreen
 import com.xxx.carelorie.ui.viewmodels.DashboardEvent
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
 import java.time.YearMonth
@@ -59,9 +60,10 @@ import java.time.YearMonth
 fun GoalScreen(navController: NavController, userId: String, viewModel: DashboardViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
-    val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    
+    // Width, not orientation: a tablet held in portrait still has room for two columns, and
+    // the old orientation check gave it the phone layout.
+    val useTwoColumns = isWideScreen
+
     var selectedMonth by rememberSaveable { mutableStateOf(YearMonth.now()) }
     var showWeightDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -78,11 +80,15 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
         }
     }
 
-    LaunchedEffect(uiState.weightHistory) {
-        if (uiState.weightHistory.isNotEmpty() && uiState.goalInsight == null && !uiState.isGoalInsightLoading) {
-            viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId))
-        }
+// Read once and branch on the local: checking the state and then re-reading it with !!
+// could throw if the error cleared between the two reads.
+val loadError = uiState.error
+
+LaunchedEffect(uiState.weightHistory) {
+    if (uiState.weightHistory.isNotEmpty() && uiState.goalInsight == null && !uiState.isGoalInsightLoading) {
+        viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId))
     }
+}
 
     if (uiState.isLoading && uiState.weightHistory.isEmpty() && uiState.trackedDates.isEmpty()) {
         // Show only the loading indicator while the initial data load is in progress.
@@ -90,10 +96,10 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
-    } else if (uiState.error != null) {
+    } else if (loadError != null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(uiState.error!!, color = MaterialTheme.colorScheme.error)
+                Text(loadError, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { viewModel.onEvent(DashboardEvent.LoadData(userId)) }) {
                     Text("Retry")
@@ -109,8 +115,8 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (isLandscape) {
-                // Landscape Layout
+            if (useTwoColumns) {
+                // Wide layout: calendar and weight graph side by side
                 StreakBar(streakCount = uiState.currentStreak)
 
                 Spacer(Modifier.height(16.dp))
@@ -171,7 +177,7 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
                     }
                 }
             } else {
-                // Portrait Layout
+                // Narrow layout: single column
                 CarelorieCalendar(
                     currentMonth = selectedMonth,
                     trackedDates = uiState.trackedDates,
