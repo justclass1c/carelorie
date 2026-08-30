@@ -36,7 +36,8 @@ object CarelorieViewModelFactories {
             DashboardViewModel(
                 userRepository = c.userRepository,
                 macroRepository = c.macroDataRepository,
-                foodRepository = c.foodRepository
+                foodRepository = c.foodRepository,
+                deepSeekService = c.deepSeekService
             )
         }
     }

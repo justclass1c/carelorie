@@ -5,6 +5,7 @@ import com.xxx.carelorie.BuildConfig
 import com.xxx.carelorie.data.nutrition.FoodRecognitionService
 import com.xxx.carelorie.data.nutrition.FoodRecognitionServiceProvider
 import com.xxx.carelorie.data.nutrition.OpenFoodFactsService
+import com.xxx.carelorie.data.remote.DeepSeekService
 import com.xxx.carelorie.data.remote.SupabaseRepository
 
 /**
@@ -38,6 +39,7 @@ class AppContainer(context: Context) {
     }
 
     val openFoodFactsService: OpenFoodFactsService by lazy { OpenFoodFactsService() }
+    val deepSeekService: DeepSeekService by lazy { DeepSeekService() }
 
     /**
      * Real recogniser when DEEPSEEK_API_KEY is set in local.properties, stub otherwise.

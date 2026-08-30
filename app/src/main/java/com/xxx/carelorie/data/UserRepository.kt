@@ -71,7 +71,8 @@ class UserRepository(
                     gender = remote.gender,
                     height = remote.height,
                     liftingExperience = remote.liftingExperience,
-                    weight = remote.weight
+                    weight = remote.weight,
+                    weightAdvice = remote.weightAdvice
                 )
                 userProfileDao.insertOrUpdateProfile(profile)
             }
@@ -104,7 +105,8 @@ class UserRepository(
         gender = profile.gender,
         height = profile.height,
         liftingExperience = profile.liftingExperience,
-        weight = profile.weight
+        weight = profile.weight,
+        weightAdvice = profile.weightAdvice
     )
 
     suspend fun getProfile(userId: String): UserProfile? {

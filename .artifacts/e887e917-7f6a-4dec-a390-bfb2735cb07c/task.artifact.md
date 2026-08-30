@@ -1,4 +1,3 @@
-- [x] Research weight graph implementation and coordinate calculation
-- [x] Modify `WeightGraph.kt` to start plot from left with a margin
-- [x] Verify the change (added buffer between dots and axis)
+- [x] Simplify `AISummaryCard` to show only raw AI advice
+- [x] Ensure advice regeneration with latest BMI and 7-day trend
 - [x] Update walkthrough

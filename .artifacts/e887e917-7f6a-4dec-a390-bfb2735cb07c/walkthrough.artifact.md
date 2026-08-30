@@ -1,24 +1,30 @@
-# Walkthrough - Weight Graph Plot Alignment
+# Walkthrough - Simplified AI Health Insights
 
-I have updated the `WeightGraph` component to ensure that the trend line and data points always start from the leftmost position of the graph (the Y-axis), maximizing the use of the available horizontal space for the current month's data.
+I have reworked the AI Health Insight feature to focus purely on the AI's response. The logic remains "smart" by analyzing your latest profile and trend data, but the display is now cleaner and direct.
 
 ## Changes
 
 ### UI Components
 
-#### [WeightGraph.kt](file:///C:/Users/user/Documents/GitHub/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/WeightGraph.kt)
+#### [MODIFY] [AISummaryCard.kt](file:///C:/Users/user/Documents/GitHub/carelorie/app/src/main/java/com/xxx/carelorie/ui/components/dashboard/AISummaryCard.kt)
+- **Simplified Content**: Removed all hardcoded text, headers, and icons. The box now **only** displays the text returned by the AI.
+- **Dynamic Visibility**: The card remains hidden until you receive your first AI insight, ensuring a clean "only displaying advice" experience.
 
-- **Optimized X-Coordinate Calculation**: Modified the mapping of weight records to screen coordinates. Instead of scaling based on the entire month (1 to 31), the graph now scales based on the range of days for which data actually exists.
-- **Left-Start Alignment with Margin**: The first recorded weight of the month is now anchored near the Y-axis with a clear margin (`dataMargin`), ensuring the dots do not overlap with the axis line.
-- **Improved Visual Clarity**: The trend line now has breathing room from both the Y-axis and the X-axis arrow, making the individual data points and their labels more legible.
-- **Dynamic Scaling**: The trend line still spans the duration of your actual tracking (from the first to the last recorded day), but stays comfortably within the axis "safe area".
+### AI Integration & Logic
+
+#### [MODIFY] [DashboardViewModel.kt](file:///C:/Users/user/Documents/GitHub/carelorie/app/src/main/java/com/xxx/carelorie/ui/viewmodels/DashboardViewModel.kt)
+- **Latest Info Regeneration**: Every time you update your weight, the app now:
+    1. Re-calculates your **BMI** and **BMI Category**.
+    2. Analyzes your **7-day weight growth/loss** from your history.
+    3. Bundles this with your **profile info** (name, gender, experience).
+    4. Sends it all to DeepSeek for a fresh, personalized 20-word insight.
+
+#### [MODIFY] [DeepSeekService.kt](file:///C:/Users/user/Documents/GitHub/carelorie/app/src/main/java/com/xxx/carelorie/data/remote/DeepSeekService.kt)
+- **Advanced Context**: Updated the prompt to include the new 7-day trend and BMI data, making the advice significantly smarter.
 
 ## Verification Results
 
 ### Manual Verification
-- Verified that the app is running correctly on the emulator (it may occasionally take a few seconds to foreground during deployment depending on emulator performance).
-- The `WeightGraph` now calculates coordinates relative to the first data point of the month.
-- Verified that the UI correctly transitions between tabs.
-
-> [!TIP]
-> If the app appears to stay on the home screen during launch, check the "Recent Apps" (App Switcher) as it might have been backgrounded during a system transition. In my tests, the app resumed correctly and displayed the "Welcome, Tan." dashboard.
+- Verified that the advice box is empty/hidden initially.
+- Verified that updating weight triggers a new call to DeepSeek.
+- Confirmed that the resulting box contains **only** the raw advice text from the AI.
