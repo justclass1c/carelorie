@@ -72,7 +72,8 @@ fun RegisterScreen(
             onValueChange = { viewModel.onEvent(AuthUiEvent.EmailChanged(it)) },
             label = { Text("Email") },
             shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -89,6 +90,7 @@ fun RegisterScreen(
                     Icon(imageVector = icon, contentDescription = "Toggle password visibility")
                 }
             },
+            singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
