@@ -155,10 +155,13 @@ fun BottomNavBar(
                     .fillMaxHeight()
                     .padding(
                         bottom = contentPadding.calculateBottomPadding(),
-                        // Only apply the Scaffold's side padding if the rail ISN'T there.
-                        // This prevents the "too much left margin" issue in landscape.
-                        start = if (showNavigation && useRail) 0.dp else contentPadding.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
-                        end = contentPadding.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
+                        // Only apply the Scaffold's side padding if the rail ISN'T there,
+                        // and only when navigation chrome is visible. Full-bleed screens
+                        // (food search, etc.) handle their own side insets via their own
+                        // Scaffold, so adding them here again duplicates the cutout inset
+                        // and creates an uneven left gap in landscape.
+                        start = if (!showNavigation || useRail) 0.dp else contentPadding.calculateStartPadding(androidx.compose.ui.unit.LayoutDirection.Ltr),
+                        end = if (!showNavigation) 0.dp else contentPadding.calculateEndPadding(androidx.compose.ui.unit.LayoutDirection.Ltr)
                     )
             ) {
                 AppNavigation(
