@@ -13,7 +13,10 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,8 +27,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.xxx.carelorie.Routes
 import com.xxx.carelorie.data.remote.RemoteFoodLog
+import com.xxx.carelorie.ui.components.dashboard.MEAL_TYPES
 import com.xxx.carelorie.ui.components.food.FoodLogCalendar
+import com.xxx.carelorie.ui.layout.isWideScreen
 import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.ui.theme.overLimitColor
 import com.xxx.carelorie.ui.viewmodels.FoodLogEvent
@@ -41,9 +47,9 @@ private val DATE_LABEL = DateTimeFormatter.ofPattern("EEE, MMM d")
 fun FoodLogScreen(
     navController: NavController,
     userId: String,
-    viewModel: FoodLogViewModel,
-    isWideScreen: Boolean = false
+    viewModel: FoodLogViewModel
 ) {
+    val wide = isWideScreen
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -64,9 +70,14 @@ fun FoodLogScreen(
     val onDelete: (RemoteFoodLog) -> Unit = { log ->
         viewModel.onEvent(FoodLogEvent.DeleteLog(userId, log))
     }
+    // Adding goes to food search for the day being viewed, not for today.
+    val onAddToMeal: (String) -> Unit = { meal ->
+        navController.navigate(Routes.foodSearch(meal, uiState.selectedDate))
+    }
+    var editing by remember { mutableStateOf<RemoteFoodLog?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (isWideScreen) {
+        if (wide) {
             // Tablet: calendar stays open beside the log instead of pushing it down.
             Row(modifier = Modifier.fillMaxSize()) {
                 Column(
@@ -112,7 +123,12 @@ fun FoodLogScreen(
                     Spacer(Modifier.height(16.dp))
                     MacroSummaryRow(uiState)
                     Spacer(Modifier.height(16.dp))
-                    LogBody(uiState = uiState, onDelete = onDelete)
+                    LogBody(
+                        uiState = uiState,
+                        onDelete = onDelete,
+                        onAddToMeal = onAddToMeal,
+                        onEdit = { editing = it }
+                    )
                     Spacer(Modifier.height(24.dp))
                 }
             }
@@ -161,9 +177,31 @@ fun FoodLogScreen(
                 Spacer(Modifier.height(20.dp))
                 MacroSummaryRow(uiState)
                 Spacer(Modifier.height(20.dp))
-                LogBody(uiState = uiState, onDelete = onDelete)
+                LogBody(
+                    uiState = uiState,
+                    onDelete = onDelete,
+                    onAddToMeal = onAddToMeal,
+                    onEdit = { editing = it }
+                )
                 Spacer(Modifier.height(24.dp))
             }
+        }
+
+        editing?.let { entry ->
+            EditEntryDialog(
+                entry = entry,
+                onDismiss = { editing = null },
+                onSave = { quantity, meal ->
+                    viewModel.onEvent(
+                        FoodLogEvent.UpdateLog(userId, entry.localId, quantity, meal)
+                    )
+                    editing = null
+                },
+                onDelete = {
+                    onDelete(entry)
+                    editing = null
+                }
+            )
         }
 
         SnackbarHost(
@@ -285,7 +323,12 @@ private fun MacroSummaryRow(uiState: FoodLogUiState) {
 }
 
 @Composable
-private fun LogBody(uiState: FoodLogUiState, onDelete: (RemoteFoodLog) -> Unit) {
+private fun LogBody(
+    uiState: FoodLogUiState,
+    onDelete: (RemoteFoodLog) -> Unit,
+    onAddToMeal: (String) -> Unit,
+    onEdit: (RemoteFoodLog) -> Unit
+) {
     when {
         uiState.isLoading && uiState.logs.isEmpty() -> {
             Box(
@@ -298,19 +341,27 @@ private fun LogBody(uiState: FoodLogUiState, onDelete: (RemoteFoodLog) -> Unit) 
             }
         }
 
-        uiState.logs.isEmpty() -> {
-            EmptyDay(isToday = uiState.isToday, isFuture = uiState.isFuture)
-        }
+        // Past and present days always show all four meals so there is somewhere to tap "+".
+        // Only the future has nothing to offer.
+        uiState.isFuture -> FutureDayNotice()
 
         else -> {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                uiState.mealGroups.filterNot { it.isEmpty }.forEach { group ->
-                    MealGroupCard(group = group, onDelete = onDelete)
+                uiState.mealGroups.forEach { group ->
+                    MealGroupCard(
+                        group = group,
+                        onDelete = onDelete,
+                        onAdd = { onAddToMeal(group.mealType) },
+                        onEdit = onEdit
+                    )
                 }
                 if (uiState.otherEntries.isNotEmpty()) {
+                    // No add button: "Other" is a catch-all for unrecognised meal types, not a
+                    // meal you can deliberately log into.
                     MealGroupCard(
                         group = MealGroup("Other", uiState.otherEntries),
-                        onDelete = onDelete
+                        onDelete = onDelete,
+                        onEdit = onEdit
                     )
                 }
             }
@@ -319,7 +370,7 @@ private fun LogBody(uiState: FoodLogUiState, onDelete: (RemoteFoodLog) -> Unit) 
 }
 
 @Composable
-private fun EmptyDay(isToday: Boolean, isFuture: Boolean) {
+private fun FutureDayNotice() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -328,21 +379,13 @@ private fun EmptyDay(isToday: Boolean, isFuture: Boolean) {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = when {
-                    isFuture -> "Nothing logged yet"
-                    isToday -> "No meals logged today"
-                    else -> "Nothing was logged on this day"
-                },
+                text = "This day hasn't happened yet",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = if (isToday) {
-                    "Add food from the Dashboard to see it here."
-                } else {
-                    "Pick another date from the calendar."
-                },
+                text = "Pick today or an earlier date to log a meal.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -351,7 +394,12 @@ private fun EmptyDay(isToday: Boolean, isFuture: Boolean) {
 }
 
 @Composable
-private fun MealGroupCard(group: MealGroup, onDelete: (RemoteFoodLog) -> Unit) {
+private fun MealGroupCard(
+    group: MealGroup,
+    onDelete: (RemoteFoodLog) -> Unit,
+    onEdit: (RemoteFoodLog) -> Unit,
+    onAdd: (() -> Unit)? = null
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -374,6 +422,16 @@ private fun MealGroupCard(group: MealGroup, onDelete: (RemoteFoodLog) -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                onAdd?.let {
+                    IconButton(onClick = it, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Add food to ${group.mealType}",
+                            modifier = Modifier.size(20.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
 
             Spacer(Modifier.height(4.dp))
@@ -386,20 +444,33 @@ private fun MealGroupCard(group: MealGroup, onDelete: (RemoteFoodLog) -> Unit) {
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
+            if (group.entries.isEmpty()) {
+                Text(
+                    text = "Nothing logged",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             group.entries.forEach { entry ->
-                LogEntryRow(entry = entry, onDelete = { onDelete(entry) })
+                LogEntryRow(
+                    entry = entry,
+                    onDelete = { onDelete(entry) },
+                    onEdit = { onEdit(entry) }
+                )
             }
         }
     }
 }
 
 @Composable
-private fun LogEntryRow(entry: RemoteFoodLog, onDelete: () -> Unit) {
+private fun LogEntryRow(entry: RemoteFoodLog, onDelete: () -> Unit, onEdit: () -> Unit) {
     val time = FoodLogViewModel.formatLoggedTime(entry.createdAt)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onEdit)
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -408,6 +479,13 @@ private fun LogEntryRow(entry: RemoteFoodLog, onDelete: () -> Unit) {
                 text = entry.foodName,
                 style = MaterialTheme.typography.bodyLarge
             )
+            if (entry.quantity != 1f) {
+                Text(
+                    text = "${formatServings(entry.quantity)} servings",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (time != null) {
                     Text(
@@ -501,4 +579,158 @@ fun MacroSummaryItem(label: String, current: Float, target: Float, color: Color)
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+/** "2", "1.5" — trailing ".0" on a whole number reads like a bug. */
+private fun formatServings(value: Float): String =
+    if (value % 1f == 0f) value.toInt().toString() else value.toString()
+
+/**
+ * Edit a diary entry: change how many servings it was, or move it to another meal.
+ *
+ * Also the only place the nutrition detail gathered at logging time is visible, which is why the
+ * whole row opens this rather than just an edit icon.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditEntryDialog(
+    entry: RemoteFoodLog,
+    onDismiss: () -> Unit,
+    onSave: (Float, String) -> Unit,
+    onDelete: () -> Unit
+) {
+    var quantity by remember(entry.localId) { mutableFloatStateOf(entry.quantity) }
+    var meal by remember(entry.localId) { mutableStateOf(entry.mealType) }
+    var mealMenuOpen by remember { mutableStateOf(false) }
+
+    // Macros are stored as the total for the logged servings, so one serving is total / quantity
+    // and the preview scales from there.
+    val perServing = if (entry.quantity > 0f) entry.quantity else 1f
+    val factor = quantity / perServing
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(entry.foodName) },
+        text = {
+            Column {
+                entry.brand?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                entry.servingDescription?.let {
+                    Text("1 serving = $it", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Servings", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.weight(1f))
+                    IconButton(
+                        onClick = { quantity = (quantity - 0.5f).coerceAtLeast(0.25f) },
+                        enabled = quantity > 0.25f
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = "Fewer servings")
+                    }
+                    Text(
+                        text = formatServings(quantity),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    IconButton(
+                        onClick = { quantity = (quantity + 0.5f).coerceAtMost(20f) },
+                        enabled = quantity < 20f
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "More servings")
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Box {
+                    OutlinedButton(
+                        onClick = { mealMenuOpen = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(meal)
+                        Spacer(Modifier.weight(1f))
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Change meal")
+                    }
+                    DropdownMenu(
+                        expanded = mealMenuOpen,
+                        onDismissRequest = { mealMenuOpen = false }
+                    ) {
+                        MEAL_TYPES.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    meal = option
+                                    mealMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    text = "${(entry.calories * factor).toInt()} kcal",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("P ${(entry.protein * factor).toInt()}g", color = MacroColors.Protein)
+                    Text("C ${(entry.carbs * factor).toInt()}g", color = MacroColors.Carbs)
+                    Text("F ${(entry.fat * factor).toInt()}g", color = MacroColors.Fat)
+                }
+
+                if (entry.hasNutritionDetail) {
+                    Spacer(Modifier.height(12.dp))
+                    listOfNotNull(
+                        entry.fiberGrams?.let { "Fibre" to "${(it * factor).toInt()} g" },
+                        entry.sugarGrams?.let { "Sugar" to "${(it * factor).toInt()} g" },
+                        entry.saturatedFatGrams?.let { "Saturated fat" to "${(it * factor).toInt()} g" },
+                        entry.sodiumMilligrams?.let { "Sodium" to "${(it * factor).toInt()} mg" }
+                    ).forEach { (label, value) ->
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Text(label, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.weight(1f))
+                            Text(value, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                // An AI guess stays labelled as one, even after it is in the diary.
+                entry.nutritionSource?.let { source ->
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = source.lowercase().replace('_', ' ')
+                            .replaceFirstChar { it.uppercase() },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(quantity, meal) }) { Text("Save") }
+        },
+        dismissButton = {
+            Row {
+                TextButton(
+                    onClick = onDelete,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Delete") }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        }
+    )
 }

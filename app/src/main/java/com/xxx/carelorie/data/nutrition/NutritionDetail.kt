@@ -55,16 +55,14 @@ data class FoodCandidate(
     val carbs: Float get() = preset.carbs * quantity
     val fat: Float get() = preset.fat * quantity
 
-    /** The preset scaled by quantity, ready to hand to the food log. */
-    fun toLoggablePreset(): RemoteFoodPreset {
-        if (quantity == 1f) return preset
-        val suffix = if (quantity % 1f == 0f) "x${quantity.toInt()}" else "x$quantity"
-        return preset.copy(
-            name = "${preset.name} ($suffix)",
-            calories = calories,
-            protein = protein,
-            carbs = carbs,
-            fat = fat
-        )
-    }
+    /**
+     * The preset scaled by [quantity], ready to hand to the food log.
+     *
+     * The name is left alone. It used to gain a "(x2)" suffix, which was the only record that a
+     * quantity had ever been chosen — the diary stored the mangled name and no number, so the
+     * entry could not be edited afterwards. FoodLogEntity keeps the quantity properly now.
+     */
+    fun toLoggablePreset(): RemoteFoodPreset =
+        if (quantity == 1f) preset
+        else preset.copy(calories = calories, protein = protein, carbs = carbs, fat = fat)
 }

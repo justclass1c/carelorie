@@ -28,10 +28,39 @@ data class FoodLogEntity(
     val userId: String,
     val mealType: String,
     val foodName: String,
+    /**
+     * Totals for the whole entry — [quantity] servings' worth, not one serving.
+     *
+     * Stored as totals because that is what every sum in the app needs and what the Supabase
+     * `food_logs` table already holds. One serving's worth is total / [quantity].
+     */
     val calories: Int,
     val protein: Float,
     val carbs: Float,
     val fat: Float,
+    /**
+     * How many servings this entry is.
+     *
+     * Previously the multiplier was folded into [foodName] ("Nasi Lemak (x2)") and thrown away,
+     * which is why an entry could not be edited afterwards — there was nothing left to change.
+     */
+    val quantity: Float = 1f,
+    /** [FoodPresetEntity.localId] this came from, when it came from the library. */
+    val sourcePresetId: String? = null,
+
+    // --- nutrition detail, kept per serving as the source reported it.
+    // Local only: the Supabase food_logs table has no columns for these, and adding them to
+    // RemoteFoodLog would break every insert until a migration was run. FoodRepository.refresh
+    // carries them across a sync so they are not lost.
+    val brand: String? = null,
+    val servingDescription: String? = null,
+    val fiberGrams: Float? = null,
+    val sugarGrams: Float? = null,
+    val saturatedFatGrams: Float? = null,
+    val sodiumMilligrams: Float? = null,
+    /** [NutritionSource] name, so an AI estimate stays labelled as one in the diary. */
+    val nutritionSource: String? = null,
+
     /** Full ISO timestamp, e.g. 2026-08-23T08:14:05 */
     val loggedAt: String,
     /** Just the date part (YYYY-MM-DD) — indexed so day and month queries stay fast. */
@@ -39,7 +68,13 @@ data class FoodLogEntity(
     val isSynced: Boolean = false,
     /** Deleted locally, but the server copy still needs removing on the next sync. */
     val isPendingDelete: Boolean = false
-)
+) {
+    /** One serving's worth, for showing what a single portion costs. */
+    val caloriesPerServing: Int get() = if (quantity > 0f) (calories / quantity).toInt() else calories
+
+    val hasNutritionDetail: Boolean
+        get() = listOfNotNull(fiberGrams, sugarGrams, saturatedFatGrams, sodiumMilligrams).isNotEmpty()
+}
 
 fun FoodLogEntity.toRemote(): RemoteFoodLog = RemoteFoodLog(
     id = remoteId,
@@ -51,12 +86,26 @@ fun FoodLogEntity.toRemote(): RemoteFoodLog = RemoteFoodLog(
     carbs = carbs,
     fat = fat,
     createdAt = loggedAt,
-    localId = localId
+    localId = localId,
+    quantity = quantity,
+    brand = brand,
+    servingDescription = servingDescription,
+    fiberGrams = fiberGrams,
+    sugarGrams = sugarGrams,
+    saturatedFatGrams = saturatedFatGrams,
+    sodiumMilligrams = sodiumMilligrams,
+    nutritionSource = nutritionSource
 )
 
+/**
+ * @param preserve the local row this remote entry replaces, if we already had one. Quantity and
+ * nutrition detail live only on the device, so they are carried over rather than reset to
+ * defaults every time a sync re-inserts the server's copy.
+ */
 fun RemoteFoodLog.toEntity(
     localId: String = UUID.randomUUID().toString(),
-    isSynced: Boolean = true
+    isSynced: Boolean = true,
+    preserve: FoodLogEntity? = null
 ): FoodLogEntity {
     val timestamp = createdAt.ifBlank { java.time.LocalDateTime.now().toString() }
     return FoodLogEntity(
@@ -69,6 +118,15 @@ fun RemoteFoodLog.toEntity(
         protein = protein,
         carbs = carbs,
         fat = fat,
+        quantity = preserve?.quantity ?: 1f,
+        sourcePresetId = preserve?.sourcePresetId,
+        brand = preserve?.brand,
+        servingDescription = preserve?.servingDescription,
+        fiberGrams = preserve?.fiberGrams,
+        sugarGrams = preserve?.sugarGrams,
+        saturatedFatGrams = preserve?.saturatedFatGrams,
+        sodiumMilligrams = preserve?.sodiumMilligrams,
+        nutritionSource = preserve?.nutritionSource,
         loggedAt = timestamp,
         logDate = timestamp.take(10),
         isSynced = isSynced

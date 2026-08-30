@@ -51,6 +51,9 @@ interface FoodLogDao {
     )
     suspend fun getFrom(userId: String, from: String): List<FoodLogEntity>
 
+    @Query("SELECT * FROM food_log_entries WHERE localId = :localId LIMIT 1")
+    suspend fun getByLocalId(localId: String): FoodLogEntity?
+
     @Query("SELECT * FROM food_log_entries WHERE isSynced = 0 AND isPendingDelete = 0")
     suspend fun getUnsynced(): List<FoodLogEntity>
 

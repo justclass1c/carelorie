@@ -24,7 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
+import com.xxx.carelorie.Routes
 import com.xxx.carelorie.data.ThemeManager
+import com.xxx.carelorie.ui.layout.ContentWidth
+import com.xxx.carelorie.ui.layout.constrainedWidth
+import com.xxx.carelorie.ui.layout.isExpandedScreen
 import com.xxx.carelorie.ui.viewmodels.ProfileUiEvent
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
@@ -72,16 +76,33 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
 
     LaunchedEffect(uiState.isLoggedOut) {
         if (uiState.isLoggedOut) {
-            navController.navigate("login") {
+            navController.navigate(Routes.LOGIN) {
                 popUpTo(0)
             }
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    LaunchedEffect(uiState.isSaveSuccess) {
+        if (!uiState.isSaveSuccess) return@LaunchedEffect
+        if (isOnboarding) {
+            // Finish the sign-up flow instead of leaving the new user parked on this form with
+            // no sign that they were done. popUpTo(0) so back cannot return to onboarding.
+            navController.navigate(Routes.DASHBOARD) { popUpTo(0) }
+        }
+        // Consume it either way, so an ordinary profile edit doesn't leave the flag set.
+        viewModel.onEvent(ProfileUiEvent.ResetSaveStatus)
+    }
+
+    // Expanded windows have room to show Personal and Macros at once, so the tab row only
+    // earns its place on narrower screens.
+    val twoColumnSections = isExpandedScreen
+
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxHeight()
+                .constrainedWidth(if (twoColumnSections) ContentWidth.Reading else ContentWidth.Form)
+                .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
@@ -146,11 +167,16 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
 
             Spacer(Modifier.height(15.dp))
 
-            val tabs = listOf("Personal", "Macros", "Settings")
-            PrimaryTabRow(selectedTabIndex = selectedTab) {
+            val tabs = if (twoColumnSections) listOf("Details", "Settings") else listOf("Personal", "Macros", "Settings")
+
+            // Resizing across the breakpoint changes how many tabs there are, so clamp rather
+            // than leaving no tab highlighted on the frame the window changes.
+            val activeTab = selectedTab.coerceAtMost(tabs.lastIndex)
+
+            PrimaryTabRow(selectedTabIndex = activeTab) {
                 tabs.forEachIndexed { index, label ->
                     Tab(
-                        selected = selectedTab == index,
+                        selected = activeTab == index,
                         onClick = { selectedTab = index },
                         text = { Text(label) }
                     )
@@ -159,8 +185,34 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
 
             Spacer(Modifier.height(16.dp))
 
-            when (selectedTab) {
-                0 -> {
+            val settingsTabIndex = tabs.lastIndex
+
+            when {
+                activeTab == 0 && twoColumnSections -> {
+                    // Wide: personal details and macro limits share the row instead of
+                    // hiding behind separate tabs.
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        Box(Modifier.weight(1f)) {
+                            if (uiState.isEditMode) {
+                                ProfileEditSection(uiState = uiState, onEvent = viewModel::onEvent)
+                            } else {
+                                ProfileViewSection(uiState = uiState)
+                            }
+                        }
+                        Box(Modifier.weight(1f)) {
+                            if (uiState.isEditMode) {
+                                MacroLimitsEditSection(uiState = uiState, onEvent = viewModel::onEvent)
+                            } else {
+                                MacroLimitsView(uiState = uiState)
+                            }
+                        }
+                    }
+                }
+
+                activeTab == 0 -> {
                     if (uiState.isEditMode) {
                         ProfileEditSection(uiState = uiState, onEvent = viewModel::onEvent)
                     } else {
@@ -168,7 +220,7 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                     }
                 }
 
-                1 -> {
+                activeTab < settingsTabIndex -> {
                     if (uiState.isEditMode) {
                         MacroLimitsEditSection(uiState = uiState, onEvent = viewModel::onEvent)
                     } else {
@@ -182,6 +234,8 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                         onThemeChange = { viewModel.onEvent(ProfileUiEvent.ThemeChanged(it)) }
                     )
                     if (!uiState.isEditMode) {
+                        // Food Query used to be linked from here; it is a nav tab now, so a
+                        // second link from a sibling top-level destination is just clutter.
                         Spacer(Modifier.height(24.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),

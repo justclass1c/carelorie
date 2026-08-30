@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarDefaults
@@ -20,12 +21,12 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -35,17 +36,38 @@ import androidx.navigation.compose.rememberNavController
 import com.xxx.carelorie.AppNavigation
 import com.xxx.carelorie.CarelorieApplication
 import com.xxx.carelorie.Routes
+import com.xxx.carelorie.ui.layout.isWideScreen
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
 import com.xxx.carelorie.ui.viewmodels.CarelorieViewModelFactories
 import com.xxx.carelorie.ui.viewmodels.DashboardViewModel
+import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
+import com.xxx.carelorie.ui.viewmodels.FoodQueryViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
 
+/**
+ * One navigation destination. [label] is what the bar and rail show, so keep it short — see
+ * [NavLabel].
+ */
 data class Screens(val route: String, val label: String, val icon: ImageVector)
+
+/**
+ * Label for a bar or rail destination.
+ *
+ * Five destinations share the bottom bar, so on a narrow phone each gets roughly 72dp. A label
+ * allowed to wrap makes its item taller than its neighbours, which pushes that item's icon up
+ * and knocks the whole row out of alignment. Ellipsising is the graceful failure here, and it
+ * also holds up at large system font scales.
+ */
+@Composable
+private fun NavLabel(text: String) {
+    Text(text, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+}
 
 val entries = listOf(
     Screens(Routes.DASHBOARD, "Dashboard", Icons.Default.Dashboard),
     Screens(Routes.FOOD_LOG, "Food Log", Icons.AutoMirrored.Filled.MenuBook),
+    Screens(Routes.FOOD_QUERY, "Foods", Icons.Default.Restaurant),
     Screens(Routes.GOAL, "Goal", Icons.Default.FitnessCenter),
     Screens(Routes.PROFILE, "Profile", Icons.Default.Person)
 )
@@ -57,6 +79,7 @@ private fun hidesNavigation(route: String?): Boolean {
         route == Routes.REGISTER ||
         route == Routes.REVIEW_FOODS ||
         route == Routes.DIET_CHAT ||
+        route.startsWith(Routes.FOOD_EDITOR) ||
         route.startsWith(Routes.FOOD_SEARCH)
 }
 
@@ -68,10 +91,7 @@ private fun hidesNavigation(route: String?): Boolean {
  * in the prototype.
  */
 @Composable
-fun BottomNavBar(
-    widthSizeClass: WindowWidthSizeClass,
-    modifier: Modifier = Modifier
-) {
+fun BottomNavBar(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
@@ -83,11 +103,16 @@ fun BottomNavBar(
     val profileViewModel: ProfileViewModel = viewModel(factory = CarelorieViewModelFactories.Profile)
     val dashboardViewModel: DashboardViewModel = viewModel(factory = CarelorieViewModelFactories.Dashboard)
     val foodSearchViewModel: FoodSearchViewModel = viewModel(factory = CarelorieViewModelFactories.FoodSearch)
+    // Owned here rather than by their NavBackStackEntry: switching tabs pops the entry and
+    // clears its ViewModelStore, so these were rebuilt — and their lists re-read from Room —
+    // every single time you came back to the tab.
+    val foodLogViewModel: FoodLogViewModel = viewModel(factory = CarelorieViewModelFactories.FoodLog)
+    val foodQueryViewModel: FoodQueryViewModel = viewModel(factory = CarelorieViewModelFactories.FoodQuery)
 
     val container = (LocalContext.current.applicationContext as CarelorieApplication).container
     val sessionManager = container.sessionManager
 
-    val useRail = widthSizeClass != WindowWidthSizeClass.Compact
+    val useRail = isWideScreen
     val showNavigation = !hidesNavigation(currentRoute)
 
     val isSelected: (String) -> Boolean = { route ->
@@ -112,7 +137,7 @@ fun BottomNavBar(
                         NavigationBarItem(
                             selected = isSelected(screen.route),
                             onClick = { onNavigate(screen.route) },
-                            label = { Text(screen.label) },
+                            label = { NavLabel(screen.label) },
                             icon = {
                                 Icon(
                                     imageVector = screen.icon,
@@ -137,7 +162,7 @@ fun BottomNavBar(
                         NavigationRailItem(
                             selected = isSelected(screen.route),
                             onClick = { onNavigate(screen.route) },
-                            label = { Text(screen.label) },
+                            label = { NavLabel(screen.label) },
                             icon = {
                                 Icon(
                                     imageVector = screen.icon,
@@ -166,11 +191,12 @@ fun BottomNavBar(
             ) {
                 AppNavigation(
                     navController = navController,
-                    widthSizeClass = widthSizeClass,
                     authViewModel = authViewModel,
                     profileViewModel = profileViewModel,
                     dashboardViewModel = dashboardViewModel,
                     foodSearchViewModel = foodSearchViewModel,
+                    foodLogViewModel = foodLogViewModel,
+                    foodQueryViewModel = foodQueryViewModel,
                     sessionManager = sessionManager
                 )
             }

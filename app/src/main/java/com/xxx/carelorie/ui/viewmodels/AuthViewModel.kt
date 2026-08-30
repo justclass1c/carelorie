@@ -146,8 +146,10 @@ class AuthViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val user = repository.getUserByEmail(email)
-            if (user != null && user.password == password) {
+            // The repository owns the comparison — passwords are hashed, and the ViewModel has
+            // no business handling the stored value.
+            val user = repository.authenticate(email, password)
+            if (user != null) {
                 sessionManager.saveUserId(user.userId, _uiState.value.isRememberMeChecked)
                 _uiState.update { it.copy(isLoading = false, isSuccess = true, successUserId = user.userId) }
             } else {

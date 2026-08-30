@@ -3,7 +3,6 @@ package com.xxx.carelorie.data.nutrition
 import android.util.Log
 import com.xxx.carelorie.data.remote.RemoteFoodPreset
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -36,45 +35,22 @@ interface FoodRecognitionService {
 }
 
 /**
- * Returns plausible results without any network call.
+ * Stand-in used when no API key is configured.
+ *
+ * It deliberately refuses rather than guessing. An earlier version returned canned macros —
+ * 250 kcal for literally any query — which looked exactly like a working answer, so "apple" and
+ * "pizza" came back identical and the numbers could end up logged as if they were real. A clear
+ * refusal is more useful than a confident fabrication.
  */
 class StubFoodRecognitionService : FoodRecognitionService {
 
-    override val isConfigured: Boolean = true
+    override val isConfigured: Boolean = false
 
-    private val sampleMeals = listOf(
-        listOf(
-            FoodCandidate(
-                RemoteFoodPreset(name = "Nasi Lemak", calories = 644, protein = 17f, carbs = 81f, fat = 27f),
-                NutritionDetail(
-                    servingDescription = "1 plate (approx. 350 g)",
-                    fiberGrams = 4.2f, sugarGrams = 6f, saturatedFatGrams = 11f,
-                    sodiumMilligrams = 890f, source = NutritionSource.AI_ESTIMATE
-                )
-            )
-        )
-    )
+    override suspend fun recognise(imageBase64: String): RecognitionResult =
+        RecognitionResult.NotConfigured
 
-    override suspend fun recognise(imageBase64: String): RecognitionResult {
-        delay(1400)
-        return RecognitionResult.Success(sampleMeals[0])
-    }
-
-    override suspend fun estimateNutrition(query: String, context: String?): RecognitionResult {
-        delay(1000)
-        val displayName = query.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-        return RecognitionResult.Success(
-            listOf(
-                FoodCandidate(
-                    RemoteFoodPreset(name = displayName, calories = 250, protein = 15f, carbs = 30f, fat = 10f),
-                    NutritionDetail(
-                        servingDescription = "Standard portion (Estimated)",
-                        source = NutritionSource.AI_ESTIMATE
-                    )
-                )
-            )
-        )
-    }
+    override suspend fun estimateNutrition(query: String, context: String?): RecognitionResult =
+        RecognitionResult.NotConfigured
 }
 
 /**
