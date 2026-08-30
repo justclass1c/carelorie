@@ -113,9 +113,11 @@ class DashboardViewModel(
                 // elsewhere are reflected immediately without waiting for the next refresh.
                 observeTodayLogs(userId)
                 
-                // Weekly Data (last 7 days)
+                // Weekly Data — the current calendar week, Sunday to Saturday,
+                // regardless of which day "today" falls on.
+                val weekStart = today.minusDays((today.dayOfWeek.value % 7).toLong())
                 val weeklyData = (0..6).map { i ->
-                    val date = today.minusDays(i.toLong())
+                    val date = weekStart.plusDays(i.toLong())
                     val logsForDay = logsByDate[date.toString()] ?: emptyList()
                     
                     DailyMacroIntake(
