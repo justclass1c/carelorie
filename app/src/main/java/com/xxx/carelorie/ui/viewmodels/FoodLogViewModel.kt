@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.xxx.carelorie.data.FoodRepository
 import com.xxx.carelorie.data.NutritionTargets
 import com.xxx.carelorie.data.SyncResult
+import com.xxx.carelorie.data.UserRepository
 import com.xxx.carelorie.data.remote.RemoteFoodLog
 import com.xxx.carelorie.ui.components.dashboard.MEAL_TYPES
 import kotlinx.coroutines.Job
@@ -74,7 +75,10 @@ sealed class FoodLogEvent {
     object MessageConsumed : FoodLogEvent()
 }
 
-class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel() {
+class FoodLogViewModel(
+    private val foodRepository: FoodRepository,
+    private val userRepository: UserRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FoodLogUiState())
     val uiState: StateFlow<FoodLogUiState> = _uiState.asStateFlow()
@@ -111,6 +115,17 @@ class FoodLogViewModel(private val foodRepository: FoodRepository) : ViewModel()
         observeLogs(userId, _uiState.value.selectedDate)
         observeLoggedDates(userId)
         syncFrom(userId, _uiState.value.selectedDate)
+        loadTargets(userId)
+    }
+
+    /** Pulls the user's daily macro limits so the summary ring reflects their settings. */
+    private fun loadTargets(userId: String) {
+        viewModelScope.launch {
+            val profile = userRepository.getProfile(userId)
+            if (profile != null) {
+                _uiState.update { it.copy(targets = profile.toNutritionTargets()) }
+            }
+        }
     }
 
     private fun changeDate(userId: String, newDate: LocalDate) {

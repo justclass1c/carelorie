@@ -71,7 +71,12 @@ class UserRepository(
                     gender = remote.gender,
                     height = remote.height,
                     liftingExperience = remote.liftingExperience,
-                    weight = remote.weight
+                    weight = remote.weight,
+                    theme = remote.theme,
+                    calorieLimit = remote.calorieLimit,
+                    proteinLimit = remote.proteinLimit,
+                    carbsLimit = remote.carbsLimit,
+                    fatLimit = remote.fatLimit
                 )
                 userProfileDao.insertOrUpdateProfile(profile)
             }
@@ -83,18 +88,21 @@ class UserRepository(
     suspend fun saveProfile(profile: UserProfile) {
         val existing = userProfileDao.getProfileByUserId(profile.userId)
 
-        // 1. Save locally
-        userProfileDao.insertOrUpdateProfile(profile)
+        persistProfile(profile)
 
-        // 2. Sync to remote
-        supabaseRepository.upsertProfile(toRemoteProfile(profile))
-
-        // 3. If the weight changed here (profile page), record it in the weight table
-        //    so the graph on the goal page stays up to date no matter where it was edited.
+        // If the weight changed here (profile page), record it in the weight table
+        // so the graph on the goal page stays up to date no matter where it was edited.
         val newWeight = profile.weight
         if (newWeight != null && newWeight != existing?.weight) {
             saveWeight(profile.userId, newWeight, LocalDate.now().toString())
         }
+    }
+
+    private suspend fun persistProfile(profile: UserProfile) {
+        // Save locally
+        userProfileDao.insertOrUpdateProfile(profile)
+        // Sync to remote
+        supabaseRepository.upsertProfile(toRemoteProfile(profile))
     }
 
     private fun toRemoteProfile(profile: UserProfile): RemoteUserProfile = RemoteUserProfile(
@@ -104,8 +112,28 @@ class UserRepository(
         gender = profile.gender,
         height = profile.height,
         liftingExperience = profile.liftingExperience,
-        weight = profile.weight
+        weight = profile.weight,
+        theme = profile.theme,
+        calorieLimit = profile.calorieLimit,
+        proteinLimit = profile.proteinLimit,
+        carbsLimit = profile.carbsLimit,
+        fatLimit = profile.fatLimit
     )
+
+    suspend fun updateTheme(userId: String, theme: String) {
+        val profile = getProfile(userId) ?: return
+        persistProfile(profile.copy(theme = theme))
+    }
+
+    suspend fun deleteAccount(userId: String) {
+        // Local cleanup
+        userDao.deleteUser(userId)
+        userProfileDao.deleteProfile(userId)
+        weightDao.deleteWeightRecords(userId)
+        // Remote cleanup
+        supabaseRepository.deleteProfile(userId)
+        supabaseRepository.deleteUser(userId)
+    }
 
     suspend fun getProfile(userId: String): UserProfile? {
         // Sync with remote first if possible to ensure we have latest data

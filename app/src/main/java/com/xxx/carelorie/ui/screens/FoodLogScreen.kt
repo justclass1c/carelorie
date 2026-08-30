@@ -27,6 +27,7 @@ import androidx.navigation.NavController
 import com.xxx.carelorie.data.remote.RemoteFoodLog
 import com.xxx.carelorie.ui.components.food.FoodLogCalendar
 import com.xxx.carelorie.ui.theme.MacroColors
+import com.xxx.carelorie.ui.theme.overLimitColor
 import com.xxx.carelorie.ui.viewmodels.FoodLogEvent
 import com.xxx.carelorie.ui.viewmodels.FoodLogUiState
 import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
@@ -474,13 +475,15 @@ private fun LegendDot(color: Color, label: String) {
 @Composable
 fun MacroSummaryItem(label: String, current: Float, target: Float, color: Color) {
     val progress = if (target > 0f) (current / target).coerceIn(0f, 1f) else 0f
+    // Warn with yellow/red when the day's intake has gone over the limit.
+    val effectiveColor = overLimitColor(current, target) ?: color
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(contentAlignment = Alignment.Center) {
             CircularProgressIndicator(
                 progress = { progress },
                 modifier = Modifier.size(48.dp),
-                color = color,
+                color = effectiveColor,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant,
                 strokeWidth = 4.dp
             )
@@ -488,7 +491,7 @@ fun MacroSummaryItem(label: String, current: Float, target: Float, color: Color)
                 text = label,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
-                color = color
+                color = effectiveColor
             )
         }
         Spacer(modifier = Modifier.height(6.dp))

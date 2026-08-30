@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.xxx.carelorie.data.DailyMacroIntake
 import com.xxx.carelorie.data.FoodRepository
 import com.xxx.carelorie.data.MacroDataRepository
+import com.xxx.carelorie.data.NutritionTargets
 import com.xxx.carelorie.data.UserRepository
 import com.xxx.carelorie.data.remote.RemoteFoodLog
 import com.xxx.carelorie.data.WeightRecord
@@ -26,6 +27,7 @@ data class DashboardUiState(
     val weightHistory: List<WeightRecord> = emptyList(),
     val currentStreak: Int = 0,
     val trackedDates: Set<LocalDate> = emptySet(),
+    val targets: NutritionTargets = NutritionTargets.DEFAULT,
     val isLoading: Boolean = true,
     val error: String? = null,
     /** One-shot text for a snackbar/toast, e.g. the result of a delete. */
@@ -173,6 +175,7 @@ class DashboardViewModel(
                         weightHistory = weightHistory,
                         currentStreak = streak,
                         trackedDates = trackedDates,
+                        targets = profile?.toNutritionTargets() ?: NutritionTargets.DEFAULT,
                         isLoading = false
                     )
                 }

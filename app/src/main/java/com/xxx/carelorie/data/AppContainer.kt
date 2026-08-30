@@ -18,6 +18,7 @@ class AppContainer(context: Context) {
     private val database: AppDatabase = AppDatabase.getDatabase(context)
     private val supabaseRepository: SupabaseRepository = SupabaseRepository()
     val sessionManager: SessionManager = SessionManager(context)
+    val themeManager: ThemeManager = ThemeManager(context)
 
     val userRepository: UserRepository by lazy {
         UserRepository(

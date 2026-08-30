@@ -184,6 +184,30 @@ class SupabaseRepository {
         }
     }
 
+    suspend fun deleteProfile(userId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["profiles"].delete {
+                filter { eq("userId", userId) }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting profile", e)
+            false
+        }
+    }
+
+    suspend fun deleteUser(userId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["users"].delete {
+                filter { eq("userId", userId) }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting user", e)
+            false
+        }
+    }
+
     suspend fun fetchProfile(userId: String): RemoteUserProfile? = withContext(Dispatchers.IO) {
         try {
             supabase.postgrest["profiles"]

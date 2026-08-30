@@ -61,7 +61,12 @@ data class RemoteUserProfile(
     val gender: String = "",
     val height: String = "",
     val liftingExperience: String = "",
-    val weight: Float? = null
+    val weight: Float? = null,
+    val theme: String = "system",
+    val calorieLimit: Int = 2000,
+    val proteinLimit: Float = 120f,
+    val carbsLimit: Float = 200f,
+    val fatLimit: Float = 65f
 )
 
 @Serializable

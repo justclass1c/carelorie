@@ -141,7 +141,7 @@ fun Dashboard(
 
                     Spacer(Modifier.height(20.dp))
 
-                    MacroRow(todayIntake = uiState.todayIntake)
+                    MacroRow(todayIntake = uiState.todayIntake, targets = uiState.targets)
                 } else {
                     // Tablet Layout: Side-by-side centered
                     Row(
@@ -171,15 +171,15 @@ fun Dashboard(
                                 modifier = Modifier.weight(1f),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                MacroCard("Protein", uiState.todayIntake.protein.toInt(), 120, Modifier.fillMaxHeight().aspectRatio(1f))
-                                MacroCard("Carbs", uiState.todayIntake.carbs.toInt(), 200, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Protein", uiState.todayIntake.protein, uiState.targets.proteinGrams, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Carbs", uiState.todayIntake.carbs, uiState.targets.carbsGrams, Modifier.fillMaxHeight().aspectRatio(1f))
                             }
                             Row(
                                 modifier = Modifier.weight(1f),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                MacroCard("Fat", uiState.todayIntake.fat.toInt(), 50, Modifier.fillMaxHeight().aspectRatio(1f))
-                                MacroCard("Calories", uiState.todayIntake.calories, 1700, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Fat", uiState.todayIntake.fat, uiState.targets.fatGrams, Modifier.fillMaxHeight().aspectRatio(1f))
+                                MacroCard("Calories", uiState.todayIntake.calories.toFloat(), uiState.targets.calories.toFloat(), Modifier.fillMaxHeight().aspectRatio(1f))
                             }
                         }
                     }

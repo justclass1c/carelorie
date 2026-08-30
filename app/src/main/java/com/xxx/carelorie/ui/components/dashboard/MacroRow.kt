@@ -18,28 +18,31 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.xxx.carelorie.data.DailyMacroIntake
+import com.xxx.carelorie.data.NutritionTargets
+import com.xxx.carelorie.ui.theme.overLimitColor
 
 @Composable
-fun MacroRow(todayIntake: DailyMacroIntake) {
+fun MacroRow(todayIntake: DailyMacroIntake, targets: NutritionTargets) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        MacroCard("Protein", todayIntake.protein.toInt(), 120, Modifier.weight(1f))
-        MacroCard("Carbs", todayIntake.carbs.toInt(), 200, Modifier.weight(1f))
-        MacroCard("Fat", todayIntake.fat.toInt(), 50, Modifier.weight(1f))
-        MacroCard("Calories", todayIntake.calories, 1700, Modifier.weight(1f))
+        MacroCard("Protein", todayIntake.protein, targets.proteinGrams, Modifier.weight(1f))
+        MacroCard("Carbs", todayIntake.carbs, targets.carbsGrams, Modifier.weight(1f))
+        MacroCard("Fat", todayIntake.fat, targets.fatGrams, Modifier.weight(1f))
+        MacroCard("Calories", todayIntake.calories.toFloat(), targets.calories.toFloat(), Modifier.weight(1f))
     }
 }
 
 @Composable
-fun MacroCard(macro: String, value: Int, maxValue: Int, modifier: Modifier = Modifier) {
+fun MacroCard(macro: String, value: Float, maxValue: Float, modifier: Modifier = Modifier) {
     val unit = if (macro == "Calories") "kcal" else "g"
+    val containerColor = overLimitColor(value, maxValue) ?: MaterialTheme.colorScheme.surface
 
     Card(
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = containerColor
         ),
         modifier = modifier.aspectRatio(1f),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
@@ -58,12 +61,12 @@ fun MacroCard(macro: String, value: Int, maxValue: Int, modifier: Modifier = Mod
             )
 
             Text(
-                text = value.toString(),
+                text = formatNumber(value),
                 style = MaterialTheme.typography.titleMedium
             )
 
             Text(
-                text = "of $maxValue$unit",
+                text = "of ${formatNumber(maxValue)}$unit",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -71,3 +74,6 @@ fun MacroCard(macro: String, value: Int, maxValue: Int, modifier: Modifier = Mod
         }
     }
 }
+
+private fun formatNumber(value: Float): String =
+    if (value == value.toInt().toFloat()) value.toInt().toString() else value.toString()
