@@ -192,7 +192,7 @@ fun FoodQueryScreen(
                     )
                     AssistChip(
                         onClick = { startScan() },
-                        label = { Text("Scan") },
+                        label = { Text("Scan QR") },
                         leadingIcon = { Icon(Icons.Default.QrCodeScanner, null, Modifier.size(18.dp)) }
                     )
                     AssistChip(
@@ -202,7 +202,7 @@ fun FoodQueryScreen(
                     )
                     AssistChip(
                         onClick = { photoSourceOpen = true },
-                        label = { Text("Scan food") },
+                        label = { Text("Scan Food") },
                         leadingIcon = { Icon(Icons.Default.PhotoCamera, null, Modifier.size(18.dp)) }
                     )
                 }
