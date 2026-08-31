@@ -36,6 +36,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -43,10 +44,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.Info
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
-import com.xxx.carelorie.ui.components.dashboard.AISummaryCard
 import com.xxx.carelorie.ui.components.dashboard.CarelorieCalendar
 import com.xxx.carelorie.ui.components.dashboard.StreakBar
 import com.xxx.carelorie.ui.components.dashboard.WeightGraph
@@ -138,10 +139,6 @@ LaunchedEffect(uiState.weightHistory) {
                         )
                         
                         Spacer(Modifier.height(16.dp))
-                        
-                        AISummaryCard(
-                            aiAdvice = uiState.weightAdvice
-                        )
                     }
 
                     Spacer(Modifier.width(16.dp))
@@ -219,10 +216,6 @@ LaunchedEffect(uiState.weightHistory) {
                 )
 
                 Spacer(Modifier.height(16.dp))
-
-                AISummaryCard(
-                    aiAdvice = uiState.weightAdvice
-                )
             }
 
             Spacer(Modifier.height(32.dp))
@@ -246,40 +239,34 @@ private fun AIInsightBox(
     isLoading: Boolean,
     onRefresh: () -> Unit
 ) {
+    val insightColor = Color(0xFFCF4A4A)
+
     Card(
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
     ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Icon(
+                    imageVector = Icons.Outlined.Info,
+                    contentDescription = null,
+                    tint = Color(0xFF888888),
+                    modifier = Modifier.height(18.dp).width(18.dp)
+                )
+                Spacer(Modifier.width(6.dp))
                 Text(
                     text = "AI Health Insight",
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = Color(0xFF555555)
                 )
-
-                IconButton(
-                    onClick = onRefresh,
-                    enabled = !isLoading
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Refresh,
-                        contentDescription = "Refresh insight",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(
-                            alpha = if (isLoading) 0.3f else 0.7f
-                        )
-                    )
-                }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
             when {
                 isLoading -> {
@@ -290,30 +277,50 @@ private fun AIInsightBox(
                         CircularProgressIndicator(
                             modifier = Modifier.height(16.dp).width(16.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = insightColor
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
                             text = "Analyzing your data...",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            color = Color(0xFF999999)
                         )
                     }
                 }
                 insight != null -> {
                     Text(
-                        text = insight,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        lineHeight = 20.sp
+                        text = insight.replace(Regex("\\*\\*"), ""),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Color.Black,
+                        lineHeight = 24.sp
                     )
                 }
                 else -> {
                     Text(
                         text = "Update your weight to get a personalized health insight.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                        color = Color(0xFF999999)
                     )
+                }
+            }
+
+            if (!isLoading) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    IconButton(
+                        onClick = onRefresh,
+                        modifier = Modifier.height(32.dp).width(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Refresh insight",
+                            tint = Color(0xFF999999),
+                            modifier = Modifier.height(18.dp).width(18.dp)
+                        )
+                    }
                 }
             }
         }

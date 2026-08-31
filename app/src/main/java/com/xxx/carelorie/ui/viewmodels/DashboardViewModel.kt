@@ -282,8 +282,8 @@ class DashboardViewModel(
 
                 Log.d("DashboardViewModel", "Goal insight - profile: ${profile != null}, weightRecords: ${weightHistory.size}")
 
-                if (profile == null || weightHistory.isEmpty()) {
-                    Log.w("DashboardViewModel", "Goal insight skipped - no profile or no weight history")
+                if (weightHistory.isEmpty()) {
+                    Log.w("DashboardViewModel", "Goal insight skipped - no weight history")
                     _uiState.update { it.copy(isGoalInsightLoading = false) }
                     return@launch
                 }
@@ -296,17 +296,17 @@ class DashboardViewModel(
                     .filter { LocalDate.parse(it.date, formatter).isAfter(sevenDaysAgo) }
                     .map { it.date to it.weight }
 
-                val currentWeight = weightHistory.lastOrNull()?.weight ?: profile.weight ?: 0f
+                val currentWeight = weightHistory.lastOrNull()?.weight ?: 0f
 
-                Log.d("DashboardViewModel", "Goal insight context - weight: $currentWeight, height: ${profile.height}, last7Days: $last7Days")
+                Log.d("DashboardViewModel", "Goal insight context - weight: $currentWeight, last7Days: $last7Days")
 
                 val context = GoalInsightContext(
-                    name = profile.name,
-                    gender = profile.gender,
-                    birthday = profile.birthday,
+                    name = profile?.name ?: "User",
+                    gender = profile?.gender ?: "unknown",
+                    birthday = profile?.birthday ?: "",
                     currentWeight = currentWeight,
-                    heightCm = profile.height.toFloatOrNull() ?: 0f,
-                    experience = profile.liftingExperience,
+                    heightCm = profile?.height?.toFloatOrNull() ?: 0f,
+                    experience = profile?.liftingExperience ?: "beginner",
                     weightHistoryLast7Days = last7Days
                 )
 

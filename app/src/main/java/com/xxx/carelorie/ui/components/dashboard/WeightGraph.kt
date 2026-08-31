@@ -132,6 +132,21 @@ fun WeightGraph(
                     Triple(Offset(x, y), day, record.weight)
                 }
 
+                // Draw Y-axis weight ticks (min, mid, max)
+                val rawMin = monthlyWeights.minOf { it.weight }
+                val rawMax = monthlyWeights.maxOf { it.weight }
+                val ticks = listOf(rawMin, (rawMin + rawMax) / 2f, rawMax).distinct()
+                ticks.forEach { tickWeight ->
+                    val y = (height - paddingBottom) - ((tickWeight - minWeight) / weightRange) * graphHeight
+                    val weightStr = if (tickWeight == tickWeight.toInt().toFloat()) "${tickWeight.toInt()}kg" else "%.1fkg".format(tickWeight)
+                    drawText(
+                        textMeasurer = textMeasurer,
+                        text = weightStr,
+                        topLeft = Offset(paddingLeft - 52.dp.toPx(), y - 6.dp.toPx()),
+                        style = TextStyle(fontSize = 9.sp, color = onSurfaceVariant)
+                    )
+                }
+
                 if (points.size > 1) {
                     val path = Path()
                     path.moveTo(points[0].first.x, points[0].first.y)
@@ -157,15 +172,16 @@ fun WeightGraph(
                     )
                 }
                 
-                // Draw points and labels
+                // Draw points and X-axis day labels
                 points.forEach { (point, day, weight) ->
                     drawCircle(color = primaryColor, radius = 6f, center = point)
                     
-                    // Draw point label (e.g. "18th: 75kg")
+                    // Draw day on X-axis
+                    val dayStr = day.toString()
                     drawText(
                         textMeasurer = textMeasurer,
-                        text = "${day}: ${weight}kg",
-                        topLeft = Offset(point.x - 20f, point.y - 35f),
+                        text = dayStr,
+                        topLeft = Offset(point.x - 6.dp.toPx(), height - paddingBottom + 6.dp.toPx()),
                         style = TextStyle(fontSize = 9.sp, color = onSurfaceVariant, fontWeight = FontWeight.Bold)
                     )
                 }

@@ -152,7 +152,7 @@ class DeepSeekService {
             BMI: ${String.format(Locale.US, "%.1f", context.bmi)} (${context.bmiCategory}).
             Weight log (last 7 days):
             $weightLog
-            Give 2-3 sentences of actionable health advice based on the weight trend, BMI, and profile. Be encouraging and specific.
+            Give 2-3 sentences of actionable health advice based on the weight trend, BMI, and profile. Be encouraging and specific. Do not use markdown formatting like ** or *.
         """.trimIndent()
 
         Log.d("DeepSeekService", "Goal insight prompt: $userPrompt")
