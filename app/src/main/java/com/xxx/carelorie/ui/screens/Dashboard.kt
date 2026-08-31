@@ -238,5 +238,5 @@ fun Dashboard(
  * somebody by their user id — which is what `username` holds until onboarding fills it in.
  */
 private fun greetingName(username: String): String =
-    if (username.isBlank() || username.length > 24) "Today" else "Hi, " + username
+    if (username.isBlank() || username.length > 24) "Today" else "Hi, " + username + "."
 
