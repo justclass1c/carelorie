@@ -46,8 +46,14 @@ class GeminiFoodRecognitionService(private val apiKey: String) : FoodRecognition
          * Google retires model ids and returns 404 with "no longer available to new users", and
          * the flash tiers periodically answer 503 under load. Walking a list means one retired or
          * busy model degrades to a slower answer rather than a dead feature.
+         *
+         * The alias goes first so this list does not need editing every time Google ships a new
+         * flash tier; the pinned id behind it is the fallback for the days the alias is busy.
+         * Checked against the API: `gemini-2.5-flash` now 404s ("no longer available to new
+         * users") and `gemini-3.5-flash` hangs, so both were dropped — every photo scan was
+         * paying for a failed request before it got to a model that answers.
          */
-        val MODELS = listOf("gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash")
+        val MODELS = listOf("gemini-flash-latest", "gemini-3.6-flash")
 
         const val SCHEMA = """{"name":string,"calories":int,"protein_g":number,"carbs_g":number,
 "fat_g":number,"serving":string,"fiber_g":number|null,"sugar_g":number|null,
