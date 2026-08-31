@@ -145,7 +145,7 @@ fun FoodQueryScreen(
                     Spacer(Modifier.height(8.dp))
                 }
 
-                if (uiState.unsyncedCount > 0) {
+                if (uiState.showUnsyncedWarning) {
                     // The server rejected the write. Saying so beats a row that quietly never
                     // leaves the phone.
                     Notice(
