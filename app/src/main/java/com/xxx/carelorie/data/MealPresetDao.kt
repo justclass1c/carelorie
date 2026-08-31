@@ -79,7 +79,7 @@ interface MealPresetDao {
     @Query("SELECT * FROM meal_presets WHERE ownerUserId = :userId AND isPendingDelete = 1")
     suspend fun getPendingDeletes(userId: String): List<MealPresetEntity>
 
-    @Query("UPDATE meal_presets SET isSynced = 1 WHERE localId = :localId")
+    @Query("UPDATE meal_presets SET isSynced = 1, wasSynced = 1 WHERE localId = :localId")
     suspend fun markSynced(localId: String)
 
     @Query("UPDATE meal_presets SET isPendingDelete = 1, isSynced = 0 WHERE localId = :localId")

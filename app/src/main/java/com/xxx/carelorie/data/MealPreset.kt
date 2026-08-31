@@ -29,7 +29,9 @@ data class MealPresetEntity(
     val createdAt: String,
     val isSynced: Boolean = false,
     /** Deleted locally, but the server copy still needs removing on the next sync. */
-    val isPendingDelete: Boolean = false
+    val isPendingDelete: Boolean = false,
+    /** True once this meal has ever reached the server, even if a later edit has not synced yet. */
+    val wasSynced: Boolean = false
 )
 
 /**

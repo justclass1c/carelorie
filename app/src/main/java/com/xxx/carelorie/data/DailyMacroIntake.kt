@@ -5,8 +5,10 @@ import java.time.LocalDate
 /**
  * One day's macronutrient total, as shown on the dashboard chart.
  *
- * Calories are derived rather than stored, so they can never disagree with the macros they were
- * calculated from: 4 kcal per gram of protein and carbohydrate, 9 per gram of fat.
+ * Protein, carbs and fat are summed from the food log. Calories are now taken from the stored
+ * values on each log entry instead of being re-derived from the macros, because the source data
+ * (APIs, AI estimates, user-entered foods) may not round-trip exactly through the 4/4/9 formula.
+ * Using the stored calories keeps the dashboard total identical to the food log total.
  *
  * This used to live alongside `MacroDataRepository`, which fetched the `macros` table from
  * Supabase. That repository was wired into DashboardViewModel but never actually called — every
@@ -17,8 +19,15 @@ data class DailyMacroIntake(
     val date: LocalDate,
     val protein: Float, // grams
     val carbs: Float,   // grams
-    val fat: Float      // grams
-) {
+    val fat: Float,     // grams
     val calories: Int
-        get() = (protein * 4 + carbs * 4 + fat * 9).toInt()
+) {
+    /** Fallback for callers that only have macros; kept inside the module. */
+    constructor(date: LocalDate, protein: Float, carbs: Float, fat: Float) : this(
+        date,
+        protein,
+        carbs,
+        fat,
+        calories = (protein * 4 + carbs * 4 + fat * 9).toInt()
+    )
 }

@@ -46,6 +46,7 @@ data class DashboardUiState(
 ) {
     val todayIntake: DailyMacroIntake
         get() {
+            val calories = todayLogs.sumOf { it.calories }
             val protein = todayLogs.sumOf { it.protein.toDouble() }.toFloat()
             val carbs = todayLogs.sumOf { it.carbs.toDouble() }.toFloat()
             val fat = todayLogs.sumOf { it.fat.toDouble() }.toFloat()
@@ -53,7 +54,8 @@ data class DashboardUiState(
                 date = LocalDate.now(),
                 protein = protein,
                 carbs = carbs,
-                fat = fat
+                fat = fat,
+                calories = calories
             )
         }
 }
@@ -160,7 +162,8 @@ class DashboardViewModel(
                         date = date,
                         protein = logsForDay.sumOf { it.protein.toDouble() }.toFloat(),
                         carbs = logsForDay.sumOf { it.carbs.toDouble() }.toFloat(),
-                        fat = logsForDay.sumOf { it.fat.toDouble() }.toFloat()
+                        fat = logsForDay.sumOf { it.fat.toDouble() }.toFloat(),
+                        calories = logsForDay.sumOf { it.calories }
                     )
                 }.sortedBy { it.date }
 
@@ -174,7 +177,8 @@ class DashboardViewModel(
                         date = date,
                         protein = logsForDay.sumOf { it.protein.toDouble() }.toFloat(),
                         carbs = logsForDay.sumOf { it.carbs.toDouble() }.toFloat(),
-                        fat = logsForDay.sumOf { it.fat.toDouble() }.toFloat()
+                        fat = logsForDay.sumOf { it.fat.toDouble() }.toFloat(),
+                        calories = logsForDay.sumOf { it.calories }
                     )
                 }
 

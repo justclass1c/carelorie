@@ -54,7 +54,8 @@ data class UserProfile(
     /** Cached Mifflin-St Jeor result, so the summary screen and the AI agree on one number. */
     val estimatedTdee: Int? = null,
     /** ISO timestamp. Null while the flow has never been finished — which is a valid state. */
-    val onboardingCompletedAt: String? = null
+    val onboardingCompletedAt: String? = null,
+    val isSynced: Boolean = false
 ) {
     fun toNutritionTargets(): NutritionTargets = NutritionTargets(
         calories = calorieLimit,

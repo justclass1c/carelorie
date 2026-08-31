@@ -28,7 +28,8 @@ class AppContainer(context: Context) {
             userProfileDao = database.userProfileDao(),
             weightDao = database.weightDao(),
             sessionManager = sessionManager,
-            supabaseRepository = supabaseRepository
+            supabaseRepository = supabaseRepository,
+            connectivity = connectivity
         )
     }
 

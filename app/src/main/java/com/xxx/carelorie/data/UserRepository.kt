@@ -13,7 +13,8 @@ class UserRepository(
     private val userProfileDao: UserProfileDao,
     private val weightDao: WeightDao,
     private val sessionManager: SessionManager,
-    private val supabaseRepository: SupabaseRepository
+    private val supabaseRepository: SupabaseRepository,
+    private val connectivity: ConnectivityChecker = AlwaysOnlineChecker()
 ) {
     fun clearSession() = sessionManager.clearSession()
 
@@ -122,6 +123,10 @@ class UserRepository(
         try {
             val remote = supabaseRepository.fetchProfile(userId)
             if (remote != null) {
+                val local = userProfileDao.getProfileByUserId(userId)
+                // A local profile with un-pushed changes is newer than whatever the server has.
+                if (local?.isSynced == false) return
+
                 val profile = UserProfile(
                     userId = remote.userId,
                     name = remote.name,
@@ -149,7 +154,8 @@ class UserRepository(
                     calorieLimit = remote.calorieLimit,
                     proteinLimit = remote.proteinLimit,
                     carbsLimit = remote.carbsLimit,
-                    fatLimit = remote.fatLimit
+                    fatLimit = remote.fatLimit,
+                    isSynced = true
                 )
                 userProfileDao.insertOrUpdateProfile(profile)
             }
@@ -161,7 +167,7 @@ class UserRepository(
     suspend fun saveProfile(profile: UserProfile) {
         val existing = userProfileDao.getProfileByUserId(profile.userId)
 
-        persistProfile(profile)
+        persistProfile(profile.copy(isSynced = false))
 
         // If the weight changed here (profile page), record it in the weight table
         // so the graph on the goal page stays up to date no matter where it was edited.
@@ -172,10 +178,15 @@ class UserRepository(
     }
 
     private suspend fun persistProfile(profile: UserProfile) {
-        // Save locally
+        // Save locally first; the remote call is best-effort.
         userProfileDao.insertOrUpdateProfile(profile)
-        // Sync to remote
-        supabaseRepository.upsertProfile(toRemoteProfile(profile))
+        if (!connectivity.isOnline()) return
+        try {
+            supabaseRepository.upsertProfile(toRemoteProfile(profile))
+            userProfileDao.markSynced(profile.userId)
+        } catch (e: Exception) {
+            // Leave unsynced; [flushOutbox] will retry once the connection is back.
+        }
     }
 
     private fun toRemoteProfile(profile: UserProfile): RemoteUserProfile = RemoteUserProfile(
@@ -210,7 +221,7 @@ class UserRepository(
 
     suspend fun updateTheme(userId: String, theme: String) {
         val profile = getProfile(userId) ?: return
-        persistProfile(profile.copy(theme = theme))
+        persistProfile(profile.copy(theme = theme, isSynced = false))
     }
 
     /**
@@ -302,8 +313,11 @@ class UserRepository(
         try { userDao.getUserById(userId)?.createdAt } catch (e: Exception) { null }
 
     suspend fun getProfile(userId: String): UserProfile? {
-        // Sync with remote first if possible to ensure we have latest data
-        syncProfileWithRemote(userId)
+        val local = userProfileDao.getProfileByUserId(userId)
+        if (local?.isSynced != false) {
+            // Only pull remote when local is clean; otherwise we would overwrite offline edits.
+            syncProfileWithRemote(userId)
+        }
         val profile = userProfileDao.getProfileByUserId(userId) ?: return null
 
         // Display the weight from the most recent date in the weight history.
@@ -341,18 +355,27 @@ class UserRepository(
 
     suspend fun saveWeight(userId: String, weight: Float, date: String) {
         // 1. Upsert locally — same-day updates replace the existing record instead of
-        //    creating a new one.
+        //    creating a new one. Mark unsynced so [flushOutbox] can push it later.
         val existing = weightDao.getWeightForDay(userId, date)
         val record = WeightRecord(
             id = existing?.id ?: 0,
             userId = userId,
             date = date,
-            weight = weight
+            weight = weight,
+            isSynced = false
         )
-        weightDao.insertOrUpdateWeight(record)
+        val rowId = weightDao.insertOrUpdateWeight(record)
+        val savedId = if (rowId == -1L) record.id else rowId.toInt()
 
-        // 2. Upsert to the remote `weight` table (keyed by userId + date).
-        supabaseRepository.saveWeightRecord(RemoteWeightRecord(userId = userId, weight = weight, date = date))
+        // 2. Try to upsert to the remote `weight` table (keyed by userId + date).
+        if (connectivity.isOnline()) {
+            try {
+                supabaseRepository.saveWeightRecord(RemoteWeightRecord(userId = userId, weight = weight, date = date))
+                weightDao.markSynced(savedId)
+            } catch (e: Exception) {
+                // Leave unsynced; the outbox will retry once the connection is back.
+            }
+        }
 
         // 3. Keep the profile's "current" weight in sync so the profile page always shows
         //    the latest updated weight.
@@ -360,27 +383,28 @@ class UserRepository(
     }
 
     private suspend fun updateProfileWeight(userId: String, weight: Float) {
-        val profile = getProfile(userId)
+        val profile = userProfileDao.getProfileByUserId(userId)
         if (profile != null && profile.weight != weight) {
-            val updated = profile.copy(weight = weight)
-            userProfileDao.insertOrUpdateProfile(updated)
-            supabaseRepository.upsertProfile(toRemoteProfile(updated))
+            persistProfile(profile.copy(weight = weight, isSynced = false))
         }
     }
 
     suspend fun getWeightHistory(userId: String): List<WeightRecord> {
         // Sync remote records into the local cache first so the graph reflects weight
-        // entries made on any screen or device.
+        // entries made on any screen or device. Never overwrite local unsynced changes,
+        // because the user's latest edit is the source of truth until it reaches the server.
         try {
             val remote = supabaseRepository.fetchWeightRecords(userId)
             for (r in remote) {
                 val existing = weightDao.getWeightForDay(userId, r.date)
+                if (existing?.isSynced == false) continue
                 weightDao.insertOrUpdateWeight(
                     WeightRecord(
                         id = existing?.id ?: 0,
                         userId = userId,
                         date = r.date,
-                        weight = r.weight
+                        weight = r.weight,
+                        isSynced = true
                     )
                 )
             }
@@ -388,5 +412,43 @@ class UserRepository(
             // Offline: fall back to local cache
         }
         return weightDao.getAllWeightRecords(userId)
+    }
+
+    /**
+     * Drains the weight and profile outbox. Called at app start so offline edits reach Supabase
+     * as soon as a connection is available, without waiting for the screen that made them to
+     * reopen.
+     */
+    suspend fun flushOutbox() {
+        if (!connectivity.isOnline()) return
+        pushUnsyncedWeight()
+        pushUnsyncedProfile()
+    }
+
+    private suspend fun pushUnsyncedWeight() {
+        val pending = try { weightDao.getUnsynced() } catch (e: Exception) { return }
+        for (record in pending) {
+            try {
+                supabaseRepository.saveWeightRecord(
+                    RemoteWeightRecord(userId = record.userId, weight = record.weight, date = record.date)
+                )
+                weightDao.markSynced(record.id)
+            } catch (e: Exception) {
+                // Stop on the first failure; the rest will retry next time.
+                break
+            }
+        }
+    }
+
+    private suspend fun pushUnsyncedProfile() {
+        val pending = try { userProfileDao.getUnsynced() } catch (e: Exception) { return }
+        for (profile in pending) {
+            try {
+                supabaseRepository.upsertProfile(toRemoteProfile(profile))
+                userProfileDao.markSynced(profile.userId)
+            } catch (e: Exception) {
+                break
+            }
+        }
     }
 }

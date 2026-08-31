@@ -45,6 +45,7 @@ class CarelorieApplication : Application() {
         if (userId.isEmpty()) return
         appScope.launch {
             runCatching { container.foodRepository.flushOutbox() }
+            runCatching { container.userRepository.flushOutbox() }
             runCatching { container.mealPresetRepository.refresh(userId) }
         }
     }

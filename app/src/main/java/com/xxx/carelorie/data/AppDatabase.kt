@@ -21,7 +21,7 @@ import com.xxx.carelorie.data.local.FoodPresetEntity
         MealPresetEntity::class,
         MealPresetItemEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -226,6 +226,24 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 15 to 16: offline-first bookkeeping for user data, and a persistent "was synced" flag
+         * for saved meals.
+         *
+         * The weight and profile tables used to write locally and then immediately call Supabase
+         * inline, so a flaky connection could fail the whole save or leave the remote copy stale.
+         * Adding an [isSynced] flag lets those writes queue locally and upload later. Saved meals
+         * get a [wasSynced] flag so a delete made after a rename still reaches the server instead
+         * of resurrecting the old copy on the next refresh.
+         */
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                addColumnIfMissing(db, "meal_presets", "wasSynced INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "weight_records", "isSynced INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(db, "user_profiles", "isSynced INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -233,8 +251,8 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "carelorie_database"
                 )
-                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
-                    .build()
+                .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
+                .build()
                 INSTANCE = instance
                 instance
             }

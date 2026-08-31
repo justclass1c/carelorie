@@ -83,10 +83,14 @@ class MealPresetRepository(
      *
      * Hidden locally at once, then cleared from the server. A meal that never reached Supabase is
      * simply dropped; anything else is queued so a delete made offline is not forgotten.
+     *
+     * [wasSynced] is the guard, not [isSynced], because a rename marks the row unsynced even
+     * though the server still holds an older copy. Deleting that renamed meal must still reach the
+     * server, otherwise the old copy is pulled back down on the next refresh.
      */
     suspend fun delete(localId: String) {
         val existing = mealPresetDao.getByLocalId(localId) ?: return
-        if (!existing.isSynced) {
+        if (!existing.wasSynced) {
             mealPresetDao.delete(localId)
             return
         }
@@ -143,7 +147,8 @@ class MealPresetRepository(
                     name = remote.name,
                     mealType = remote.mealType,
                     createdAt = remote.createdAt,
-                    isSynced = true
+                    isSynced = true,
+                    wasSynced = true
                 ),
                 (itemsByMeal[remote.localId] ?: emptyList()).map { item ->
                     MealPresetItemEntity(
