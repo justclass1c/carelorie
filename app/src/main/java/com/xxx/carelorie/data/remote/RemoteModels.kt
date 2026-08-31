@@ -60,7 +60,8 @@ data class RemoteUser(
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val userId: String? = null,
     val email: String,
-    val password: String
+    val password: String,
+    val recoveryKey: String = ""
 )
 
 @Serializable
@@ -104,3 +105,5 @@ data class RemoteWeightRecord(
     val weight: Float,
     val date: String
 )
+
+// (No patch DTOs needed: password and recovery-key changes upsert the full RemoteUser row.)

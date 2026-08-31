@@ -38,7 +38,15 @@ data class ProfileUiState(
     val stats: TrackingStats = TrackingStats(),
     /** 0f..1f. Below 1f the profile offers to finish setting the plan up. */
     val onboardingProgress: Float = 0f,
-    val hasCompletedOnboarding: Boolean = false
+    val hasCompletedOnboarding: Boolean = false,
+    /** Raw one-time recovery key, shown to the user exactly once, then cleared. */
+    val recoveryKey: String = "",
+    val hasRecoveryKey: Boolean = false,
+    val showRegenerateDialog: Boolean = false,
+    val regeneratePassword: String = "",
+    val regeneratePasswordVisible: Boolean = false,
+    val regenerateLoading: Boolean = false,
+    val regenerateError: String? = null
 )
 
 sealed class ProfileUiEvent {
@@ -61,6 +69,12 @@ sealed class ProfileUiEvent {
     object DeleteAccount : ProfileUiEvent()
     object ErrorConsumed : ProfileUiEvent()
     object ResetSaveStatus : ProfileUiEvent()
+    object RecoveryKeyDismissed : ProfileUiEvent()
+    object RegenerateRecoveryKeyClicked : ProfileUiEvent()
+    data class RegeneratePasswordChanged(val password: String) : ProfileUiEvent()
+    object ToggleRegeneratePasswordVisibility : ProfileUiEvent()
+    object RegenerateDialogDismissed : ProfileUiEvent()
+    object ConfirmRegenerateRecoveryKey : ProfileUiEvent()
 }
 
 class ProfileViewModel(
@@ -94,6 +108,12 @@ class ProfileViewModel(
             is ProfileUiEvent.DeleteAccount -> deleteAccount()
             is ProfileUiEvent.ErrorConsumed -> _uiState.update { it.copy(errorMessage = null) }
             is ProfileUiEvent.ResetSaveStatus -> _uiState.update { it.copy(isSaveSuccess = false) }
+            is ProfileUiEvent.RecoveryKeyDismissed -> _uiState.update { it.copy(recoveryKey = "") }
+            is ProfileUiEvent.RegenerateRecoveryKeyClicked -> _uiState.update { it.copy(showRegenerateDialog = true, regenerateError = null) }
+            is ProfileUiEvent.RegeneratePasswordChanged -> _uiState.update { it.copy(regeneratePassword = event.password, regenerateError = null) }
+            is ProfileUiEvent.ToggleRegeneratePasswordVisibility -> _uiState.update { it.copy(regeneratePasswordVisible = !it.regeneratePasswordVisible) }
+            is ProfileUiEvent.RegenerateDialogDismissed -> _uiState.update { it.copy(showRegenerateDialog = false, regeneratePassword = "", regenerateError = null) }
+            is ProfileUiEvent.ConfirmRegenerateRecoveryKey -> regenerateRecoveryKey()
         }
     }
 
@@ -140,6 +160,47 @@ class ProfileViewModel(
             }
 
             loadStats(userId)
+
+            // One-time recovery key: create it on first visit and surface it for a single reveal.
+            if (repository.hasRecoveryKey(userId)) {
+                _uiState.update { it.copy(hasRecoveryKey = true) }
+            } else {
+                repository.generateRecoveryKey(userId)?.let { raw ->
+                    _uiState.update { it.copy(hasRecoveryKey = true, recoveryKey = raw) }
+                }
+            }
+        }
+    }
+
+    private fun regenerateRecoveryKey() {
+        val userId = _uiState.value.userId
+        val password = _uiState.value.regeneratePassword
+        if (password.isBlank()) {
+            _uiState.update { it.copy(regenerateError = "Enter your current password") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(regenerateLoading = true, regenerateError = null) }
+            val user = repository.getUserById(userId)
+            if (user == null || repository.authenticate(user.email, password) == null) {
+                _uiState.update { it.copy(regenerateLoading = false, regenerateError = "Incorrect password") }
+                return@launch
+            }
+            val raw = repository.generateRecoveryKey(userId)
+            if (raw != null) {
+                _uiState.update {
+                    it.copy(
+                        regenerateLoading = false,
+                        showRegenerateDialog = false,
+                        regeneratePassword = "",
+                        regenerateError = null,
+                        recoveryKey = raw,
+                        hasRecoveryKey = true
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(regenerateLoading = false, regenerateError = "Could not generate a key. Try again.") }
+            }
         }
     }
 
@@ -199,6 +260,12 @@ class ProfileViewModel(
             val minYear = currentYear - 100
             if (year != null && year < minYear) {
                 _uiState.update { it.copy(errorMessage = "Year should not be less than $minYear") }
+                return
+            }
+            // Only people over 12 years old may use the app.
+            val latestAllowedYear = currentYear - 13
+            if (year != null && year > latestAllowedYear) {
+                _uiState.update { it.copy(errorMessage = "You must be over 12 years old to use this app") }
                 return
             }
         }

@@ -21,7 +21,7 @@ import com.xxx.carelorie.data.local.FoodPresetEntity
         MealPresetEntity::class,
         MealPresetItemEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -107,6 +107,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 13 to 14: the hashed one-time recovery key on `users`.
+         *
+         * Added on master as a version bump under `fallbackToDestructiveMigration()`, which would
+         * have wiped every table including the offline write queue. Written out here instead so
+         * the bump stays additive, consistent with [MIGRATION_12_13].
+         */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE users ADD COLUMN recoveryKey TEXT NOT NULL DEFAULT ''"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -114,7 +129,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "carelorie_database"
                 )
-                    .addMigrations(MIGRATION_12_13)
+                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14)
                     .build()
                 INSTANCE = instance
                 instance
