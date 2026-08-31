@@ -3,14 +3,14 @@ package com.xxx.carelorie.ui
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
-import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -23,7 +23,6 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
@@ -35,9 +34,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -96,7 +92,7 @@ private fun NavLabel(text: String) {
 
 val entries = listOf(
     Screens(Routes.DASHBOARD, "Home", Icons.Filled.Home, Icons.Outlined.Home),
-    Screens(Routes.FOOD_LOG, "Diary", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
+    Screens(Routes.FOOD_LOG, "Food Logs", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
     Screens(Routes.FOOD_QUERY, "Presets", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
     Screens(Routes.GOAL, "Goal", Icons.Filled.FitnessCenter, Icons.Outlined.FitnessCenter),
     Screens(Routes.PROFILE, "Profile", Icons.Filled.Person, Icons.Outlined.Person)
@@ -145,8 +141,6 @@ fun BottomNavBar(modifier: Modifier = Modifier) {
 
     val useRail = isWideScreen
     val showNavigation = !hidesNavigation(currentRoute)
-    // Survives rotation and window resizing, so collapsing does not undo itself.
-    var railExpanded by rememberSaveable { mutableStateOf(true) }
 
     val isSelected: (String) -> Boolean = { route ->
         currentDestination?.hierarchy?.any {
@@ -210,39 +204,23 @@ fun BottomNavBar(modifier: Modifier = Modifier) {
         Row(modifier = Modifier.fillMaxSize()) {
             if (showNavigation && useRail) {
                 NavigationRail(
-                    modifier = Modifier.padding(
-                        top = contentPadding.calculateTopPadding(),
-                        bottom = contentPadding.calculateBottomPadding()
-                    ),
-                    header = {
-                        // Collapsing drops the labels and keeps the icons, which is what the
-                        // prototype's « control does. Worth the row of pixels on a 10" tablet
-                        // in landscape, where the rail is otherwise pure margin.
-                        IconButton(onClick = { railExpanded = !railExpanded }) {
-                            Icon(
-                                imageVector = if (railExpanded) {
-                                    Icons.Default.KeyboardDoubleArrowLeft
-                                } else {
-                                    Icons.Default.KeyboardDoubleArrowRight
-                                },
-                                contentDescription = if (railExpanded) {
-                                    "Collapse navigation"
-                                } else {
-                                    "Expand navigation"
-                                }
-                            )
-                        }
-                    }
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(
+                            top = contentPadding.calculateTopPadding(),
+                            bottom = contentPadding.calculateBottomPadding()
+                        ),
+                    // The outer Scaffold already accounts for system insets; asking the rail to
+                    // do it again would double-pad the content and leave the rail misaligned or
+                    // clipped at the top.
+                    windowInsets = WindowInsets(0, 0, 0, 0)
                 ) {
+                    Spacer(Modifier.weight(1f))
                     entries.forEach { screen ->
                         NavigationRailItem(
                             selected = isSelected(screen.route),
                             onClick = { onNavigate(screen.route) },
-                            label = if (railExpanded) {
-                                { NavLabel(screen.label) }
-                            } else {
-                                null
-                            },
+                            label = { NavLabel(screen.label) },
                             icon = {
                                 Icon(
                                     imageVector = if (isSelected(screen.route)) {
@@ -255,6 +233,7 @@ fun BottomNavBar(modifier: Modifier = Modifier) {
                             }
                         )
                     }
+                    Spacer(Modifier.weight(1f))
                 }
             }
 

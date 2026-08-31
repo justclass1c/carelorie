@@ -94,7 +94,7 @@ fun FoodLogScreen(
                         .padding(16.dp)
                 ) {
                     Text(
-                        text = "Food Log",
+                        text = "Food Logs",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 16.dp)
@@ -144,10 +144,10 @@ fun FoodLogScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .statusBarsPadding()
-                    .padding(16.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
             ) {
                 LargeTitle(
-                    title = "Diary",
+                    title = "Food Logs",
                     modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
                 )
 

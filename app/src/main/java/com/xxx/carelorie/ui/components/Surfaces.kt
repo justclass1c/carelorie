@@ -1,7 +1,6 @@
 package com.xxx.carelorie.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,42 +10,18 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xxx.carelorie.ui.theme.LocalIsDarkTheme
-
-/**
- * A soft, wide shadow — the kind that reads as "this is floating slightly", not as a drawn edge.
- *
- * Compose's default shadow is tuned for Material's paper metaphor and comes out dark and tight.
- * Dropping the spot and ambient alphas well below their defaults and spreading the elevation gives
- * the diffuse look that makes a light-mode card sit above the page rather than being stuck to it.
- *
- * In dark mode this does nothing at all, and that is correct: a shadow is invisible against black.
- * Depth there comes from the surface being lighter than the ground, which [CarelorieCard] handles.
- */
-fun Modifier.softShadow(
-    elevation: Dp,
-    shape: Shape,
-    isDark: Boolean
-): Modifier = if (isDark) this else this.shadow(
-    elevation = elevation,
-    shape = shape,
-    clip = false,
-    ambientColor = Color.Black.copy(alpha = 0.10f),
-    spotColor = Color.Black.copy(alpha = 0.10f)
-)
 
 /**
  * The standard container: content on a raised surface over the grouped background.
@@ -74,14 +49,10 @@ fun CarelorieCard(
 ) {
     val isDark = LocalIsDarkTheme.current
 
-    Column(
+    Card(
         modifier = modifier
             .then(if (fillWidth) Modifier.fillMaxWidth() else Modifier)
-            .then(if (elevated) Modifier.softShadow(10.dp, shape, isDark) else Modifier)
-            .clip(shape)
-            // `surface` is white on light and #1C1C1E on dark — a step above the ground either
-            // way, which is the separation this card is built on.
-            .background(MaterialTheme.colorScheme.surface)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .then(
                 // A hairline in dark mode only: on black, surface-versus-ground alone can be too
                 // subtle to find a card's edge. In light mode the shadow already does that job and
@@ -94,11 +65,19 @@ fun CarelorieCard(
                 } else {
                     Modifier
                 }
-            )
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(contentPadding),
-        content = content
-    )
+            ),
+        shape = shape,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = if (elevated) {
+            CardDefaults.cardElevation(defaultElevation = 2.dp)
+        } else {
+            CardDefaults.cardElevation(defaultElevation = 0.dp)
+        }
+    ) {
+        Column(modifier = Modifier.padding(contentPadding)) {
+            content()
+        }
+    }
 }
 
 /**
