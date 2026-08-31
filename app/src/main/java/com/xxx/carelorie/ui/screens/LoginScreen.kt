@@ -24,6 +24,7 @@ import com.xxx.carelorie.ui.layout.constrainedWidth
 import com.xxx.carelorie.ui.theme.CarelorieTheme
 import com.xxx.carelorie.ui.viewmodels.AuthUiEvent
 import com.xxx.carelorie.ui.viewmodels.AuthViewModel
+import com.xxx.carelorie.ui.viewmodels.ForgotPasswordState
 
 @Composable
 fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, viewModel: AuthViewModel) {
@@ -42,6 +43,13 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
         uiState.errorMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
             viewModel.onEvent(AuthUiEvent.ErrorConsumed)
+        }
+    }
+
+    LaunchedEffect(uiState.forgot.success) {
+        if (uiState.forgot.success) {
+            Toast.makeText(context, "Password reset. Sign in with your new password.", Toast.LENGTH_LONG).show()
+            viewModel.onEvent(AuthUiEvent.ForgotDismissed)
         }
     }
 
@@ -110,6 +118,15 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
                 text = "Remember me",
                 style = MaterialTheme.typography.bodyMedium
             )
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            TextButton(
+                onClick = { viewModel.onEvent(AuthUiEvent.ForgotPasswordClicked) },
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+            ) {
+                Text("Forgot password?")
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -144,7 +161,124 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
             }
         }
     }
+
+    if (uiState.forgot.visible) {
+        ForgotPasswordDialog(
+            state = uiState.forgot,
+            onEvent = viewModel::onEvent
+        )
     }
+    }
+}
+
+@Composable
+private fun ForgotPasswordDialog(
+    state: ForgotPasswordState,
+    onEvent: (AuthUiEvent) -> Unit
+) {
+    val primaryLabel: String
+    val primaryAction: () -> Unit
+    when (state.step) {
+        ForgotPasswordState.Step.EMAIL -> {
+            primaryLabel = "Continue"
+            primaryAction = { onEvent(AuthUiEvent.ForgotContinueClicked) }
+        }
+        ForgotPasswordState.Step.RECOVERY_KEY -> {
+            primaryLabel = "Verify"
+            primaryAction = { onEvent(AuthUiEvent.VerifyRecoveryKeyClicked) }
+        }
+        ForgotPasswordState.Step.NEW_PASSWORD -> {
+            primaryLabel = "Reset password"
+            primaryAction = { onEvent(AuthUiEvent.ResetPasswordClicked) }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = { onEvent(AuthUiEvent.ForgotDismissed) },
+        title = { Text("Reset password") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                when (state.step) {
+                    ForgotPasswordState.Step.EMAIL -> {
+                        Text(
+                            "Enter the email on your account.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        OutlinedTextField(
+                            value = state.email,
+                            onValueChange = { onEvent(AuthUiEvent.ForgotEmailChanged(it)) },
+                            label = { Text("Email") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    ForgotPasswordState.Step.RECOVERY_KEY -> {
+                        Text(
+                            "Enter your recovery key. You can only see it once — on the Profile → Settings page.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        OutlinedTextField(
+                            value = state.recoveryKey,
+                            onValueChange = { onEvent(AuthUiEvent.ForgotRecoveryKeyChanged(it)) },
+                            label = { Text("Recovery key") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    ForgotPasswordState.Step.NEW_PASSWORD -> {
+                        Text(
+                            "Set a new password. The password you enter now will be used for your next login.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        OutlinedTextField(
+                            value = state.newPassword,
+                            onValueChange = { onEvent(AuthUiEvent.ForgotNewPasswordChanged(it)) },
+                            label = { Text("New password") },
+                            singleLine = true,
+                            visualTransformation = if (state.passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                val icon = if (state.passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
+                                IconButton(onClick = { onEvent(AuthUiEvent.ToggleForgotPasswordVisibility) }) {
+                                    Icon(imageVector = icon, contentDescription = "Toggle password visibility")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = state.confirmPassword,
+                            onValueChange = { onEvent(AuthUiEvent.ForgotConfirmPasswordChanged(it)) },
+                            label = { Text("Confirm password") },
+                            singleLine = true,
+                            visualTransformation = if (state.passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+
+                state.errorMessage?.let {
+                    Text(
+                        it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = primaryAction, enabled = !state.isLoading) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text(primaryLabel)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { onEvent(AuthUiEvent.ForgotDismissed) }) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Preview(showBackground = true)

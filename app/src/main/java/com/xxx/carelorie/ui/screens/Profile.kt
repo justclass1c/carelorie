@@ -11,16 +11,22 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
@@ -38,6 +44,7 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(userId) {
@@ -237,12 +244,17 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                         // Food Query used to be linked from here; it is a nav tab now, so a
                         // second link from a sibling top-level destination is just clutter.
                         Spacer(Modifier.height(24.dp))
+                        RecoveryKeySection(
+                            hasKey = uiState.hasRecoveryKey,
+                            onRegenerate = { viewModel.onEvent(ProfileUiEvent.RegenerateRecoveryKeyClicked) }
+                        )
+                        Spacer(Modifier.height(24.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             OutlinedButton(
-                                onClick = { viewModel.onEvent(ProfileUiEvent.Logout) },
+                                onClick = { showLogoutDialog = true },
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text("Logout")
@@ -298,6 +310,111 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Log out?") },
+            text = { Text("You will need to sign in again to view your data.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                        viewModel.onEvent(ProfileUiEvent.Logout)
+                    }
+                ) {
+                    Text("Log out")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (uiState.recoveryKey.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(ProfileUiEvent.RecoveryKeyDismissed) },
+            title = { Text("Your recovery key") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "This key is shown only once. Save it somewhere safe — it can be used to reset your password if you ever forget it. It cannot be viewed again.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            uiState.recoveryKey,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 18.sp,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.onEvent(ProfileUiEvent.RecoveryKeyDismissed) }) {
+                    Text("I've saved it")
+                }
+            }
+        )
+    }
+
+    if (uiState.showRegenerateDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.onEvent(ProfileUiEvent.RegenerateDialogDismissed) },
+            title = { Text("Reset recovery key") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Enter your current password to generate a new recovery key. The old key stops working immediately.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = uiState.regeneratePassword,
+                        onValueChange = { viewModel.onEvent(ProfileUiEvent.RegeneratePasswordChanged(it)) },
+                        label = { Text("Password") },
+                        singleLine = true,
+                        visualTransformation = if (uiState.regeneratePasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            val icon = if (uiState.regeneratePasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
+                            IconButton(onClick = { viewModel.onEvent(ProfileUiEvent.ToggleRegeneratePasswordVisibility) }) {
+                                Icon(imageVector = icon, contentDescription = "Toggle password visibility")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    uiState.regenerateError?.let {
+                        Text(
+                            it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.onEvent(ProfileUiEvent.ConfirmRegenerateRecoveryKey) },
+                    enabled = !uiState.regenerateLoading
+                ) {
+                    if (uiState.regenerateLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Generate")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.onEvent(ProfileUiEvent.RegenerateDialogDismissed) }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -454,6 +571,31 @@ fun ThemeSection(theme: String, onThemeChange: (String) -> Unit) {
                     label = { Text(label) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun RecoveryKeySection(hasKey: Boolean, onRegenerate: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "Recovery Key",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = if (hasKey) {
+                "Your recovery key was shown once when you first opened your profile. It can reset your password but can never be viewed again. If you lost it, generate a new one (your current password is required)."
+            } else {
+                "A recovery key is generated and shown once on your first visit. It can be used to reset your password."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onRegenerate, modifier = Modifier.fillMaxWidth()) {
+            Text("Reset recovery key")
         }
     }
 }

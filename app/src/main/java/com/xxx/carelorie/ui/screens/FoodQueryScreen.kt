@@ -89,7 +89,7 @@ fun FoodQueryScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             // No back arrow: this is a top-level tab, like Dashboard and Goal.
-            TopAppBar(title = { Text("Food Query") })
+            TopAppBar(title = { Text("Presets") })
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(

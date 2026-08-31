@@ -15,4 +15,13 @@ interface UserDao {
 
     @Query("DELETE FROM users WHERE userId = :userId")
     suspend fun deleteUser(userId: String)
+
+    @Query("UPDATE users SET password = :passwordHash WHERE email = :email")
+    suspend fun updatePasswordByEmail(email: String, passwordHash: String)
+
+    @Query("SELECT * FROM users WHERE userId = :userId LIMIT 1")
+    suspend fun getUserById(userId: String): User?
+
+    @Query("UPDATE users SET recoveryKey = :recoveryKeyHash WHERE userId = :userId")
+    suspend fun updateRecoveryKey(userId: String, recoveryKeyHash: String)
 }

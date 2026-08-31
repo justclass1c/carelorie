@@ -65,7 +65,12 @@ class UserRepository(
         }
 
         if (remote != null && remote.userId != null) {
-            val user = User(userId = remote.userId, email = remote.email, password = remote.password)
+            val user = User(
+                userId = remote.userId,
+                email = remote.email,
+                password = remote.password,
+                recoveryKey = remote.recoveryKey
+            )
             userDao.insertUser(user)
             syncProfileWithRemote(remote.userId)
             return user
@@ -82,11 +87,16 @@ class UserRepository(
     /** Best-effort mirror of a local account to Supabase. Failure is expected and ignored. */
     private suspend fun pushUser(user: User) {
         runCatching {
-            supabaseRepository.insertUser(
-                RemoteUser(userId = user.userId, email = user.email, password = user.password)
-            )
+            supabaseRepository.upsertUser(user.toRemoteUser())
         }
     }
+
+    private fun User.toRemoteUser() = RemoteUser(
+        userId = userId,
+        email = email,
+        password = password,
+        recoveryKey = recoveryKey
+    )
 
     private suspend fun hashPassword(raw: String): String = withContext(Dispatchers.Default) {
         PasswordHasher.hash(raw)
@@ -157,6 +167,63 @@ class UserRepository(
     suspend fun updateTheme(userId: String, theme: String) {
         val profile = getProfile(userId) ?: return
         persistProfile(profile.copy(theme = theme))
+    }
+
+    /**
+     * Verifies [key] against the account's hashed recovery key. The key is stored hashed, so
+     * this runs the same PBKDF2 comparison as login. Returns false when no key is set.
+     */
+    suspend fun verifyRecoveryKey(email: String, key: String): Boolean {
+        val user = getUserByEmail(email) ?: return false
+        if (user.recoveryKey.isBlank()) return false
+        return withContext(Dispatchers.Default) {
+            PasswordHasher.verify(key.trim(), user.recoveryKey)
+        }
+    }
+
+    /**
+     * Generates a new one-time recovery key for [userId], stores only its hash (locally and on
+     * Supabase), and returns the raw key so the UI can reveal it exactly once. Replaces any
+     * previous key.
+     */
+    suspend fun generateRecoveryKey(userId: String): String? {
+        val user = userDao.getUserById(userId) ?: return null
+        val raw = generateRawRecoveryKey()
+        val hashed = hashPassword(raw)
+        userDao.updateRecoveryKey(userId, hashed)
+        supabaseRepository.upsertUser(user.toRemoteUser().copy(recoveryKey = hashed))
+        return raw
+    }
+
+    /** True when the account already has a recovery key (hash) stored. */
+    suspend fun hasRecoveryKey(userId: String): Boolean =
+        userDao.getUserById(userId)?.recoveryKey?.isNotBlank() == true
+
+    suspend fun getUserById(userId: String): User? = userDao.getUserById(userId)
+
+    private fun generateRawRecoveryKey(): String {
+        val alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+        val random = java.security.SecureRandom()
+        return buildString {
+            repeat(4) { group ->
+                if (group > 0) append('-')
+                repeat(5) {
+                    append(alphabet[random.nextInt(alphabet.length)])
+                }
+            }
+        }
+    }
+
+    /**
+     * Sets a new password after a verified reset. Hashes the raw value and updates both the local
+     * Room `users` row and the Supabase `users` mirror.
+     */
+    suspend fun resetPassword(email: String, newPassword: String): Boolean {
+        val user = userDao.getUserByEmail(email) ?: return false
+        val hashed = hashPassword(newPassword)
+        userDao.updatePasswordByEmail(email, hashed)
+        supabaseRepository.upsertUser(user.toRemoteUser().copy(password = hashed))
+        return true
     }
 
     suspend fun deleteAccount(userId: String) {

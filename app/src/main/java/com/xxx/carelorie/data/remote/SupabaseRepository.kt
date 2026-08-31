@@ -277,4 +277,23 @@ class SupabaseRepository {
             emptyList()
         }
     }
+
+    // --- Password reset & recovery key ---
+
+    /**
+     * Upserts a whole user row, keyed by `userId`. Changing a password or recovery key goes
+     * through here rather than `.update()` because the `users` table's anon policies permit
+     * insert (and therefore upsert) but not update; `.update()` was silently failing.
+     */
+    suspend fun upsertUser(user: RemoteUser) = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["users"].upsert(user) {
+                onConflict = "userId"
+            }
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error upserting user: ${e.description} (Code: ${e.code})", e)
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error upserting user", e)
+        }
+    }
 }
