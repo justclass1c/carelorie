@@ -80,6 +80,7 @@ data class RemoteUserProfile(
     val height: String = "",
     val liftingExperience: String = "",
     val weight: Float? = null,
+    val weightAdvice: String? = null,
     val theme: String = "system",
     val calorieLimit: Int = 2000,
     val proteinLimit: Float = 120f,
