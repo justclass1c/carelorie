@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Where the camera is allowed to write the photo it takes.
+
+  cache/photos only: the file exists purely to carry one image from the camera app to the
+  recogniser, and is deleted once it has been read.
+-->
+<paths>
+    <cache-path name="food_photos" path="photos/" />
+</paths>

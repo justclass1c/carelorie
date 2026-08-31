@@ -68,4 +68,13 @@ interface FoodPresetDao {
         """
     )
     suspend fun clearSyncedForUser(userId: String)
+
+    /**
+     * Every food this user created, for account deletion.
+     *
+     * Matching on `ownerUserId = :userId` leaves the built-ins alone, since those carry a null
+     * owner and are shared by everybody.
+     */
+    @Query("DELETE FROM food_presets WHERE ownerUserId = :userId")
+    suspend fun deleteAllForUser(userId: String)
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xxx.carelorie.data.remote.RemoteFoodLog
+import com.xxx.carelorie.ui.components.CarelorieCard
 import com.xxx.carelorie.ui.theme.MacroColors
 
 /** The four meal buckets, in the order they appear on the dashboard. */
@@ -35,6 +37,8 @@ fun MealSection(
     todayLogs: List<RemoteFoodLog>,
     onAddMealClick: (String) -> Unit,
     onDeleteLog: (RemoteFoodLog) -> Unit = {},
+    onSaveAsMeal: (mealType: String, name: String) -> Unit = { _, _ -> },
+    onOpenSavedMeals: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -46,7 +50,9 @@ fun MealSection(
                 title = meal,
                 logs = todayLogs.filter { it.mealType.equals(meal, ignoreCase = true) },
                 onAddClick = { onAddMealClick(meal) },
-                onDeleteLog = onDeleteLog
+                onDeleteLog = onDeleteLog,
+                onSaveAsMeal = { name -> onSaveAsMeal(meal, name) },
+                onOpenSavedMeals = onOpenSavedMeals
             )
         }
     }
@@ -57,29 +63,22 @@ fun MealCard(
     title: String,
     logs: List<RemoteFoodLog>,
     onAddClick: () -> Unit,
-    onDeleteLog: (RemoteFoodLog) -> Unit
+    onDeleteLog: (RemoteFoodLog) -> Unit,
+    onSaveAsMeal: (String) -> Unit = {},
+    onOpenSavedMeals: () -> Unit = {}
 ) {
     var expanded by rememberSaveable(title) { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var deleteMode by rememberSaveable(title) { mutableStateOf(false) }
+    var namingMeal by remember { mutableStateOf(false) }
 
     // Nothing left to remove - drop back out of delete mode.
     LaunchedEffect(logs.isEmpty()) {
         if (logs.isEmpty()) deleteMode = false
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-    ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        ) {
+    CarelorieCard(contentPadding = PaddingValues(18.dp)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -135,8 +134,13 @@ fun MealCard(
                         DropdownMenuItem(
                             text = { Text("Save as meal") },
                             leadingIcon = { Icon(Icons.Default.Bookmark, contentDescription = null) },
-                            enabled = false, // arrives with the Create Meal screen
-                            onClick = { menuOpen = false }
+                            enabled = logs.isNotEmpty(),
+                            onClick = { menuOpen = false; namingMeal = true }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Saved meals") },
+                            leadingIcon = { Icon(Icons.Default.BookmarkBorder, contentDescription = null) },
+                            onClick = { menuOpen = false; onOpenSavedMeals() }
                         )
                         DropdownMenuItem(
                             text = { Text(if (deleteMode) "Done removing" else "Remove food") },
@@ -153,21 +157,22 @@ fun MealCard(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
+                // Tinted fill rather than an outline: this is the primary action on the card and
+                // it was reading as the quietest thing on it.
                 Surface(
                     shape = CircleShape,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(34.dp)
                         .clickable(onClick = onAddClick)
                         .semantics { contentDescription = "Add food to $title" },
-                    color = Color.Transparent
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = null,
                             modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -242,18 +247,75 @@ fun MealCard(
             }
         }
     }
+
+    if (namingMeal) {
+        SaveMealDialog(
+            defaultName = title,
+            itemCount = logs.size,
+            onDismiss = { namingMeal = false },
+            onConfirm = { name ->
+                namingMeal = false
+                onSaveAsMeal(name)
+            }
+        )
+    }
 }
 
+/** Names a meal before saving it, so the library does not fill up with "Breakfast (3)". */
+@Composable
+private fun SaveMealDialog(
+    defaultName: String,
+    itemCount: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save as meal") },
+        text = {
+            Column {
+                Text(
+                    "Saves the $itemCount ${if (itemCount == 1) "item" else "items"} currently in " +
+                        "$defaultName so you can log them again in one tap.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Meal name") },
+                    placeholder = { Text("Usual $defaultName") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(name) }, enabled = name.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+/**
+ * A macro readout.
+ *
+ * A soft tint of the macro's own colour rather than an outlined pill. Twelve of these can sit on
+ * one screen, and twelve hairline outlines is visual noise — a wash of colour carries the same
+ * information more quietly and makes the letter legible at 12sp without needing bold.
+ */
 @Composable
 fun MacroChip(letter: String, color: Color, value: String) {
     Surface(
-        modifier = Modifier.height(24.dp),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-        color = MaterialTheme.colorScheme.surface
+        modifier = Modifier.height(26.dp),
+        shape = CircleShape,
+        color = color.copy(alpha = 0.12f)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
+            modifier = Modifier.padding(horizontal = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -261,12 +323,13 @@ fun MacroChip(letter: String, color: Color, value: String) {
                 text = letter,
                 color = color,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.SemiBold
             )
             Text(
                 text = value,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 12.sp
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
             )
         }
     }

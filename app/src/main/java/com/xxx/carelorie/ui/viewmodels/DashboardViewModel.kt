@@ -5,12 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xxx.carelorie.data.DailyMacroIntake
 import com.xxx.carelorie.data.FoodRepository
-import com.xxx.carelorie.data.MacroDataRepository
+import com.xxx.carelorie.data.MealPresetRepository
 import com.xxx.carelorie.data.NutritionTargets
 import com.xxx.carelorie.data.UserRepository
+import com.xxx.carelorie.data.remote.CoachContext
 import com.xxx.carelorie.data.remote.DeepSeekService
-import com.xxx.carelorie.data.remote.HealthContext
-import com.xxx.carelorie.data.remote.GoalInsightContext
 import com.xxx.carelorie.data.remote.RemoteFoodLog
 import com.xxx.carelorie.data.WeightRecord
 import kotlinx.coroutines.Job
@@ -32,7 +31,12 @@ data class DashboardUiState(
     val currentStreak: Int = 0,
     val trackedDates: Set<LocalDate> = emptySet(),
     val targets: NutritionTargets = NutritionTargets.DEFAULT,
-    val weightAdvice: String? = null,
+    /**
+     * The coach's read on the user's weight trend.
+     *
+     * Seeded from the profile on load so returning to the Goal tab shows the last insight
+     * instantly instead of billing a fresh API call every visit.
+     */
     val goalInsight: String? = null,
     val isGoalInsightLoading: Boolean = false,
     val isLoading: Boolean = true,
@@ -59,14 +63,21 @@ sealed class DashboardEvent {
     data class UpdateWeight(val userId: String, val weight: Float, val date: LocalDate) : DashboardEvent()
     data class ChangeMonth(val userId: String, val yearMonth: YearMonth) : DashboardEvent()
     data class DeleteLog(val userId: String, val log: RemoteFoodLog) : DashboardEvent()
-    data class RequestGoalInsight(val userId: String) : DashboardEvent()
+    /** Saves everything currently logged to [mealType] as a reusable meal. */
+    data class SaveMealAsPreset(
+        val userId: String,
+        val mealType: String,
+        val name: String
+    ) : DashboardEvent()
+    /** [force] bypasses the "already have one" guard — used by the refresh button. */
+    data class RequestGoalInsight(val userId: String, val force: Boolean = false) : DashboardEvent()
     object MessageConsumed : DashboardEvent()
 }
 
 class DashboardViewModel(
     private val userRepository: UserRepository,
-    private val macroRepository: MacroDataRepository,
     private val foodRepository: FoodRepository,
+    private val mealPresetRepository: MealPresetRepository,
     private val deepSeekService: DeepSeekService
 ) : ViewModel() {
 
@@ -74,6 +85,10 @@ class DashboardViewModel(
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
     private var todayLogsJob: Job? = null
+    private var goalInsightJob: Job? = null
+
+    /** Which account the state on screen belongs to. Null until the first load. */
+    private var loadedForUser: String? = null
 
     fun onEvent(event: DashboardEvent) {
         when (event) {
@@ -81,17 +96,27 @@ class DashboardViewModel(
             is DashboardEvent.UpdateWeight -> updateWeight(event.userId, event.weight, event.date)
             is DashboardEvent.ChangeMonth -> loadDashboardData(event.userId, event.yearMonth)
             is DashboardEvent.DeleteLog -> deleteLog(event.userId, event.log)
-            is DashboardEvent.RequestGoalInsight -> requestGoalInsight(event.userId)
+            is DashboardEvent.SaveMealAsPreset ->
+                saveMealAsPreset(event.userId, event.mealType, event.name)
+            is DashboardEvent.RequestGoalInsight -> requestGoalInsight(event.userId, event.force)
             is DashboardEvent.MessageConsumed -> _uiState.update { it.copy(message = null) }
         }
     }
 
     private fun loadDashboardData(userId: String, yearMonth: YearMonth = YearMonth.now()) {
-        Log.d("DashboardViewModel", "loadDashboardData started for userId: $userId, month: $yearMonth")
+        // A different account than the one on screen: throw the old data away instead of showing
+        // the previous user's name, streak, targets and meals until the first refresh lands. This
+        // ViewModel is owned by the Activity, so signing out does not dispose it.
+        if (loadedForUser != null && loadedForUser != userId) {
+            todayLogsJob?.cancel()
+            goalInsightJob?.cancel()
+            _uiState.value = DashboardUiState()
+        }
+        loadedForUser = userId
+
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             try {
-                Log.d("DashboardViewModel", "Fetching profile...")
                 val profile = userRepository.getProfile(userId)
                 
                 val today = LocalDate.now()
@@ -101,7 +126,6 @@ class DashboardViewModel(
                 else 
                     today.minusDays(7)
 
-                Log.d("DashboardViewModel", "Fetching logs from $fetchStartDate...")
                 // Refresh the whole range to ensure consistency
                 try {
                     foodRepository.refreshRange(userId, fetchStartDate, today)
@@ -154,26 +178,22 @@ class DashboardViewModel(
                     )
                 }
 
-                val trackedDates = allLogs.mapNotNull { 
+                // Dates for the calendar come from the fetched window; the streak needs the
+                // whole history, or it silently caps at the day of the month and changes
+                // every time the user pages to a different month.
+                val trackedDates = allLogs.mapNotNull {
                     try { LocalDate.parse(it.createdAt.take(10)) } catch (e: Exception) { null }
                 }.toSet()
 
-                // Calculate current streak
-                var streak = 0
-                var checkDate = today
-                while (trackedDates.contains(checkDate)) {
-                    streak++
-                    checkDate = checkDate.minusDays(1)
-                }
-                if (streak == 0) {
-                    checkDate = today.minusDays(1)
-                    while (trackedDates.contains(checkDate)) {
-                        streak++
-                        checkDate = checkDate.minusDays(1)
-                    }
+                val allLoggedDates = try {
+                    foodRepository.getAllLoggedDates(userId)
+                } catch (e: Exception) {
+                    Log.e("DashboardViewModel", "Could not read logged dates", e)
+                    trackedDates
                 }
 
-                Log.d("DashboardViewModel", "Fetching weight history...")
+                val streak = currentStreak(allLoggedDates, today)
+
                 val weightHistory = userRepository.getWeightHistory(userId)
 
                 _uiState.update { 
@@ -186,7 +206,8 @@ class DashboardViewModel(
                         currentStreak = streak,
                         trackedDates = trackedDates,
                         targets = profile?.toNutritionTargets() ?: NutritionTargets.DEFAULT,
-                        weightAdvice = profile?.weightAdvice,
+                        // Keep an insight already on screen; otherwise fall back to the stored one.
+                        goalInsight = it.goalInsight ?: profile?.weightAdvice,
                         isLoading = false
                     )
                 }
@@ -232,91 +253,115 @@ class DashboardViewModel(
         }
     }
 
-    private fun updateWeight(userId: String, weight: Float, date: LocalDate) {
+    /**
+     * Saves the foods currently logged to [mealType] under [name].
+     *
+     * Acts on what is on screen rather than on a food-library selection, because that is what the
+     * user means by "save this meal" — quantities included.
+     */
+    private fun saveMealAsPreset(userId: String, mealType: String, name: String) {
+        val logs = _uiState.value.todayLogs
+            .filter { it.mealType.equals(mealType, ignoreCase = true) }
+
+        if (logs.isEmpty()) {
+            _uiState.update { it.copy(message = "Nothing logged to $mealType yet") }
+            return
+        }
+
         viewModelScope.launch {
-            userRepository.saveWeight(userId, weight, date.toString())
-            
-            // Reload weight history to get the latest data including the just-saved one
-            val weightHistory = userRepository.getWeightHistory(userId).sortedBy { it.date }
-            val profile = userRepository.getProfile(userId)
-            
-            if (profile != null) {
-                // Calculate 7-day trend
-                val sevenDaysAgo = LocalDate.now().minusDays(7).toString()
-                val weight7DaysAgo = weightHistory.lastOrNull { it.date <= sevenDaysAgo }?.weight 
-                    ?: weightHistory.firstOrNull()?.weight ?: weight
-                
-                val change7Days = weight - weight7DaysAgo
-
-                val healthContext = HealthContext(
-                    name = profile.name,
-                    gender = profile.gender,
-                    currentWeight = weight,
-                    heightCm = profile.height.toFloatOrNull() ?: 0f,
-                    weightChange7Days = change7Days,
-                    experience = profile.liftingExperience
-                )
-
-                val advice = deepSeekService.getWeightAdvice(healthContext)
-                if (advice != null) {
-                    userRepository.saveProfile(profile.copy(weightAdvice = advice))
+            try {
+                if (mealPresetRepository.nameIsTaken(userId, name)) {
+                    _uiState.update { it.copy(message = "You already have a meal called ${name.trim()}") }
+                    return@launch
                 }
+                mealPresetRepository.saveFromLogs(userId, name, mealType, logs)
+                _uiState.update { it.copy(message = "Saved ${name.trim()}") }
+            } catch (e: Exception) {
+                Log.e("DashboardViewModel", "Could not save meal preset", e)
+                _uiState.update { it.copy(message = "Could not save that meal") }
             }
-
-            // Reload data to update graph and advice
-            loadDashboardData(userId)
-
-            // Auto-request goal insight after weight update
-            requestGoalInsight(userId)
         }
     }
 
-    private fun requestGoalInsight(userId: String) {
+    private fun updateWeight(userId: String, weight: Float, date: LocalDate) {
         viewModelScope.launch {
-            Log.d("DashboardViewModel", "requestGoalInsight started for userId: $userId")
-            _uiState.update { it.copy(isGoalInsightLoading = true) }
+            userRepository.saveWeight(userId, weight, date.toString())
 
+            // Redraw straight away. The coach call used to be awaited here, which left the graph
+            // showing the old weight until the network answered — with no spinner, so the app
+            // simply looked frozen on a slow connection.
+            loadDashboardData(userId)
+
+            // Now that the history has changed, the standing insight is stale.
+            requestGoalInsight(userId, force = true)
+        }
+    }
+
+    /**
+     * Asks the coach for a read on the user's weight trend.
+     *
+     * Skips the call when an insight is already on screen unless [force] is set, because the Goal
+     * screen asks on every resume and each call is billed. The result is written to the profile so
+     * it survives process death and seeds [DashboardUiState.goalInsight] on the next load.
+     */
+    private fun requestGoalInsight(userId: String, force: Boolean = false) {
+        if (!force && (_uiState.value.goalInsight != null || _uiState.value.isGoalInsightLoading)) return
+
+        goalInsightJob?.cancel()
+        goalInsightJob = viewModelScope.launch {
+            _uiState.update { it.copy(isGoalInsightLoading = true) }
             try {
                 val profile = userRepository.getProfile(userId)
-                val weightHistory = userRepository.getWeightHistory(userId).sortedBy { it.date }
-
-                Log.d("DashboardViewModel", "Goal insight - profile: ${profile != null}, weightRecords: ${weightHistory.size}")
-
-                if (weightHistory.isEmpty()) {
-                    Log.w("DashboardViewModel", "Goal insight skipped - no weight history")
+                if (profile == null) {
                     _uiState.update { it.copy(isGoalInsightLoading = false) }
                     return@launch
                 }
 
-                val today = LocalDate.now()
-                val sevenDaysAgo = today.minusDays(7)
-                val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-
-                val last7Days = weightHistory
-                    .filter { LocalDate.parse(it.date, formatter).isAfter(sevenDaysAgo) }
+                val cutoff = LocalDate.now().minusDays(7)
+                val recentWeights = userRepository.getWeightHistory(userId)
+                    .sortedBy { it.date }
+                    .filter { record ->
+                        runCatching { LocalDate.parse(record.date) }.getOrNull()
+                            ?.isAfter(cutoff) == true
+                    }
                     .map { it.date to it.weight }
 
-                val currentWeight = weightHistory.lastOrNull()?.weight ?: 0f
-
-                Log.d("DashboardViewModel", "Goal insight context - weight: $currentWeight, last7Days: $last7Days")
-
-                val context = GoalInsightContext(
-                    name = profile?.name ?: "User",
-                    gender = profile?.gender ?: "unknown",
-                    birthday = profile?.birthday ?: "",
-                    currentWeight = currentWeight,
-                    heightCm = profile?.height?.toFloatOrNull() ?: 0f,
-                    experience = profile?.liftingExperience ?: "beginner",
-                    weightHistoryLast7Days = last7Days
+                val insight = deepSeekService.getCoachInsight(
+                    CoachContext(profile = profile, weightHistoryLast7Days = recentWeights)
                 )
 
-                val insight = deepSeekService.getGoalInsight(context)
-                Log.d("DashboardViewModel", "Goal insight result: ${insight?.take(50) ?: "NULL"}")
-                _uiState.update { it.copy(goalInsight = insight, isGoalInsightLoading = false) }
+                if (insight != null) {
+                    // Persist alongside the profile so reopening the tab costs nothing.
+                    userRepository.saveProfile(profile.copy(weightAdvice = insight))
+                }
+                _uiState.update {
+                    it.copy(goalInsight = insight ?: it.goalInsight, isGoalInsightLoading = false)
+                }
             } catch (e: Exception) {
-                Log.e("DashboardViewModel", "Error requesting goal insight", e)
+                Log.e("DashboardViewModel", "Could not fetch coach insight", e)
                 _uiState.update { it.copy(isGoalInsightLoading = false) }
             }
         }
+    }
+
+    /**
+     * Consecutive days ending today (or yesterday) with at least one entry.
+     *
+     * Yesterday counts as the anchor when today has nothing logged yet, so the number does not
+     * drop to zero every morning before breakfast.
+     */
+    private fun currentStreak(loggedDates: Set<LocalDate>, today: LocalDate): Int {
+        val anchor = when {
+            loggedDates.contains(today) -> today
+            loggedDates.contains(today.minusDays(1)) -> today.minusDays(1)
+            else -> return 0
+        }
+        var streak = 0
+        var cursor = anchor
+        while (loggedDates.contains(cursor)) {
+            streak++
+            cursor = cursor.minusDays(1)
+        }
+        return streak
     }
 }

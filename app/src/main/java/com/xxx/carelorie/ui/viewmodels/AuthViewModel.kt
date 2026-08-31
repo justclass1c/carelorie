@@ -227,10 +227,10 @@ class AuthViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            // Emails are compared case-insensitively, so "Foo@bar.com" and "foo@bar.com" are the
-            // same account. Check the exact form and, if that differs, the lowercase form.
+            // One lookup is enough: UserRepository normalises the address before it queries, so
+            // "Foo@Bar.com" and "foo@bar.com" reach the same row. The old two-call version still
+            // missed a third casing, which let a duplicate account through.
             val existingUser = repository.getUserByEmail(email)
-                ?: if (email != email.lowercase()) repository.getUserByEmail(email.lowercase()) else null
             if (existingUser != null) {
                 _uiState.update { it.copy(isLoading = false, errorMessage = "User already exists") }
                 return@launch
@@ -257,7 +257,9 @@ class AuthViewModel(
     }
 
     private fun login() {
-        val email = _uiState.value.email
+        // Trimmed here as well as in the repository, so the emptiness check below treats an
+        // all-whitespace field as empty rather than sending it off to fail as a bad password.
+        val email = _uiState.value.email.trim()
         val password = _uiState.value.password
 
         if (email.isEmpty() || password.isEmpty()) {

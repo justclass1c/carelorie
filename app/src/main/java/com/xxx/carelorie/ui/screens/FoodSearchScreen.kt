@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -33,6 +34,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.xxx.carelorie.Routes
+import com.xxx.carelorie.ui.components.food.PhotoSourceDialog
+import com.xxx.carelorie.ui.util.rememberFoodPhotoCapture
 import com.xxx.carelorie.data.nutrition.FoodCandidate
 import com.xxx.carelorie.ui.components.dashboard.MEAL_TYPES
 import com.xxx.carelorie.ui.layout.isExpandedScreen
@@ -60,17 +63,24 @@ fun FoodSearchScreen(
     var mealMenuOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(userId, mealType, logDate) {
-        viewModel.onEvent(FoodSearchEvent.MealTypeChanged(mealType))
-        viewModel.onEvent(FoodSearchEvent.LogDateChanged(logDate))
-        viewModel.onEvent(FoodSearchEvent.LoadPresets(userId))
+        viewModel.onEvent(FoodSearchEvent.Start(userId, mealType, logDate))
     }
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
-            snackbarHostState.showSnackbar(it)
+            // Consume before awaiting: showSnackbar suspends until the bar goes away, so
+            // leaving the screen cancels this effect and the message would stay set and
+            // replay every time you came back.
             viewModel.onEvent(FoodSearchEvent.MessageConsumed)
+            snackbarHostState.showSnackbar(it)
         }
     }
+
+    val photoCapture = rememberFoodPhotoCapture(
+        onImage = { viewModel.onEvent(FoodSearchEvent.PhotoCaptured(it)) },
+        onError = { viewModel.onEvent(FoodSearchEvent.PhotoFailed(it)) }
+    )
+    var photoSourceOpen by remember { mutableStateOf(false) }
 
     fun startScan() {
         // Google Code Scanner provides the whole scanning UI and needs no CAMERA permission.
@@ -227,8 +237,13 @@ fun FoodSearchScreen(
                 )
                 AssistChip(
                     onClick = { viewModel.onEvent(FoodSearchEvent.AiSearch) },
-                    label = { Text("Search With AI") },
+                    label = { Text("Estimate with AI") },
                     leadingIcon = { Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp)) },
+                )
+                AssistChip(
+                    onClick = { photoSourceOpen = true },
+                    label = { Text("Scan food") },
+                    leadingIcon = { Icon(Icons.Default.PhotoCamera, null, Modifier.size(18.dp)) }
                 )
             }
 
@@ -305,6 +320,13 @@ fun FoodSearchScreen(
             }
         }
     }
+    if (photoSourceOpen) {
+        PhotoSourceDialog(
+            onDismiss = { photoSourceOpen = false },
+            onCamera = photoCapture.takePhoto,
+            onGallery = photoCapture.pickPhoto
+        )
+    }
 }
 
 /** The running selection, shown alongside the results on wide screens. */
@@ -339,7 +361,7 @@ private fun SelectionPane(
                 items(uiState.selectedList, key = { it.selectionId }) { candidate ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
@@ -393,7 +415,7 @@ private fun SelectableFoodRow(
     val preset = candidate.preset
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer

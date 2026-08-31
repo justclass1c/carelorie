@@ -18,14 +18,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -41,6 +44,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.xxx.carelorie.Routes
+import androidx.compose.ui.graphics.Color
+import com.xxx.carelorie.ui.components.LargeTitle
 import com.xxx.carelorie.ui.components.dashboard.MacroCard
 import com.xxx.carelorie.ui.components.dashboard.MacroRow
 import com.xxx.carelorie.ui.components.dashboard.MealSection
@@ -78,8 +83,11 @@ fun Dashboard(
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
-            snackbarHostState.showSnackbar(it)
+            // Consume before awaiting: showSnackbar suspends until the bar goes away, so
+            // leaving the screen cancels this effect and the message would stay set and
+            // replay every time you came back.
             viewModel.onEvent(DashboardEvent.MessageConsumed)
+            snackbarHostState.showSnackbar(it)
         }
     }
 
@@ -106,7 +114,26 @@ fun Dashboard(
         return
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        // The shell behind this already paints the themed background; a second opaque layer here
+        // would sit on top of it and lose the grouped grey the cards are meant to float on.
+        containerColor = Color.Transparent,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { navController.navigate(Routes.DIET_CHAT) },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = CircleShape,
+                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Chat,
+                    contentDescription = "AI Diet Advice"
+                )
+            }
+        }
+    ) { scaffoldPadding ->
         // NOTE: children of a verticalScroll column must never use fillMaxSize()/fillMaxHeight().
         // The scroll gives them an infinite height constraint, which is what was cutting the
         // dashboard off before the lower meal cards could be reached.
@@ -115,19 +142,14 @@ fun Dashboard(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .statusBarsPadding()
-                .padding(24.dp)
+                .padding(scaffoldPadding)
+                .padding(horizontal = 20.dp)
+                .padding(top = 12.dp)
         ) {
-            Column(horizontalAlignment = Alignment.Start) {
-                Text(
-                    text = "Welcome, ${uiState.username}",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-                Text(
-                    text = currentDate,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontSize = 20.sp
-                )
-            }
+            LargeTitle(
+                title = greetingName(uiState.username),
+                subtitle = currentDate
+            )
 
             Spacer(Modifier.height(20.dp))
 
@@ -196,32 +218,27 @@ fun Dashboard(
                     },
                     onDeleteLog = { log ->
                         viewModel.onEvent(DashboardEvent.DeleteLog(userId, log))
-                    }
+                    },
+                    onSaveAsMeal = { mealType, name ->
+                        viewModel.onEvent(DashboardEvent.SaveMealAsPreset(userId, mealType, name))
+                    },
+                    onOpenSavedMeals = { navController.navigate(Routes.SAVED_MEALS) }
                 )
             }
 
-            // Breathing room so the last card clears the navigation bar.
-            Spacer(Modifier.height(24.dp))
-        }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-
-        // AI Diet Assistant
-        FloatingActionButton(
-            onClick = { navController.navigate(Routes.DIET_CHAT) },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        ) {
-            Icon(
-                imageVector = Icons.Default.Info,
-                contentDescription = "AI Diet Advice"
-            )
+            // Clearance for the floating button. Scaffold reserves space for a bottom bar but not
+            // for the FAB, so without this the last meal card's controls sit underneath it.
+            Spacer(Modifier.height(96.dp))
         }
     }
 }
+
+/**
+ * A large title is a name, not a sentence.
+ *
+ * Falls back to the date's own heading when there is no profile name yet, rather than greeting
+ * somebody by their user id — which is what `username` holds until onboarding fills it in.
+ */
+private fun greetingName(username: String): String =
+    if (username.isBlank() || username.length > 24) "Today" else "Hi, " + username
+

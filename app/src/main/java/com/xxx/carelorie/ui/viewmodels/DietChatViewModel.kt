@@ -4,6 +4,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.xxx.carelorie.BuildConfig
+import com.xxx.carelorie.data.remote.CoachContext
+import com.xxx.carelorie.data.remote.DeepSeekService
 import com.xxx.carelorie.data.UserRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -127,9 +129,6 @@ class DietChatViewModel(
         }
     }
 
-    private fun formatWeight(weight: Float): String =
-        if (weight == weight.toInt().toFloat()) weight.toInt().toString() else weight.toString()
-
     private suspend fun callDeepSeek(prompt: String, profile: com.xxx.carelorie.data.UserProfile?, weightHistory: List<com.xxx.carelorie.data.WeightRecord>): String = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
             return@withContext "The AI assistant is not configured yet. Add DEEPSEEK_API_KEY to " +
@@ -138,24 +137,20 @@ class DietChatViewModel(
 
         val url = "https://api.deepseek.com/chat/completions"
         
-        // Build personalized system prompt
-        val systemPrompt = buildString {
-            append("You are a professional dietitian and fitness coach. Provide concise, helpful, and science-based diet and nutrition advice. ")
-            if (profile != null) {
-                append("The user's name is ${profile.name}. ")
-                if (profile.gender.isNotEmpty()) append("Gender: ${profile.gender}. ")
-                if (profile.height.isNotEmpty()) append("Height: ${profile.height} cm. ")
-                if (profile.liftingExperience.isNotEmpty()) append("Fitness experience: ${profile.liftingExperience} years. ")
-                profile.weight?.let { append("Current weight: ${formatWeight(it)} kg. ") }
-                append("Address the user by name occasionally and tailor your advice to their physical profile.")
+        // One briefing shared with the Goal screen's coach, so the chat and the insight card
+        // never contradict each other — and so onboarding answers reach both automatically.
+        val systemPrompt = DeepSeekService.chatSystemPrompt(
+            profile?.let { p ->
+                CoachContext(
+                    profile = p,
+                    weightHistoryLast7Days = weightHistory
+                        .sortedBy { it.date }
+                        .takeLast(14)
+                        .map { it.date to it.weight }
+                )
             }
-            if (weightHistory.isNotEmpty()) {
-                append("The user's weight growth chart shows these records (date -> weight in kg): ")
-                append(weightHistory.joinToString("; ") { "${it.date} -> ${formatWeight(it.weight)}" })
-                append(". Consider this trend when giving advice. ")
-            }
-        }
-        
+        )
+
         val requestBody = buildJsonObject {
             put("model", "deepseek-chat")
             putJsonArray("messages") {

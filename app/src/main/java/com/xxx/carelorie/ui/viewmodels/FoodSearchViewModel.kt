@@ -56,6 +56,18 @@ data class FoodSearchUiState(
 }
 
 sealed class FoodSearchEvent {
+    /**
+     * Opening the screen to log into [mealType] on [date].
+     *
+     * Distinct from [MealTypeChanged], which is the in-screen dropdown redirecting the current
+     * basket at a different meal. This one starts a visit, and starting a visit for a different
+     * meal or day empties the basket first.
+     */
+    data class Start(
+        val userId: String,
+        val mealType: String,
+        val date: LocalDate
+    ) : FoodSearchEvent()
     data class LoadPresets(val userId: String) : FoodSearchEvent()
     data class SearchQueryChanged(val query: String) : FoodSearchEvent()
     data class MealTypeChanged(val mealType: String) : FoodSearchEvent()
@@ -64,6 +76,8 @@ sealed class FoodSearchEvent {
     data class ChangeQuantity(val candidate: FoodCandidate, val quantity: Float) : FoodSearchEvent()
     data class BarcodeScanned(val barcode: String) : FoodSearchEvent()
     data class PhotoCaptured(val imageBase64: String) : FoodSearchEvent()
+    /** The picked image could not be read — surfaced rather than silently doing nothing. */
+    data class PhotoFailed(val reason: String) : FoodSearchEvent()
     data class PresetFilterChanged(val filter: PresetFilter) : FoodSearchEvent()
     object AiSearch : FoodSearchEvent()
     data class LogSelected(val userId: String) : FoodSearchEvent()
@@ -90,6 +104,7 @@ class FoodSearchViewModel(
 
     fun onEvent(event: FoodSearchEvent) {
         when (event) {
+            is FoodSearchEvent.Start -> start(event.userId, event.mealType, event.date)
             is FoodSearchEvent.LoadPresets -> loadPresets(event.userId)
             is FoodSearchEvent.SearchQueryChanged -> onQueryChanged(event.query)
             is FoodSearchEvent.MealTypeChanged -> _uiState.update { it.copy(mealType = event.mealType) }
@@ -98,6 +113,8 @@ class FoodSearchViewModel(
             is FoodSearchEvent.ChangeQuantity -> changeQuantity(event.candidate, event.quantity)
             is FoodSearchEvent.BarcodeScanned -> lookupBarcode(event.barcode)
             is FoodSearchEvent.PhotoCaptured -> analysePhoto(event.imageBase64)
+            is FoodSearchEvent.PhotoFailed ->
+                _uiState.update { it.copy(isAnalysing = false, message = event.reason) }
             is FoodSearchEvent.PresetFilterChanged -> _uiState.update {
                 // Changing the filter always returns to the local library, since the filter
                 // has no meaning over online or AI results.
@@ -118,6 +135,42 @@ class FoodSearchViewModel(
             is FoodSearchEvent.MessageConsumed -> _uiState.update { it.copy(message = null) }
             is FoodSearchEvent.ResetLogged -> _uiState.update { it.copy(isLoggingComplete = false) }
         }
+    }
+
+    /**
+     * Begins a visit for one meal and day.
+     *
+     * The basket is cleared when the target differs from the one it was filled for. Picking foods
+     * for Breakfast, backing out without logging and then opening Lunch used to carry the picks
+     * over and log them to Lunch — this ViewModel is owned by the Activity, so nothing was
+     * discarding them.
+     *
+     * Re-entering the *same* meal deliberately keeps the basket: that is the path back from Review
+     * Foods, and emptying it there would break the review step's back button.
+     */
+    private fun start(userId: String, mealType: String, date: LocalDate) {
+        val current = _uiState.value
+        val targetChanged = current.mealType != mealType || current.logDate != date
+
+        _uiState.update {
+            if (targetChanged) {
+                it.copy(
+                    mealType = mealType,
+                    logDate = date,
+                    selected = emptyMap(),
+                    query = "",
+                    results = emptyList(),
+                    mode = SearchMode.PRESETS,
+                    presetFilter = PresetFilter.ALL,
+                    isLoggingComplete = false,
+                    message = null
+                )
+            } else {
+                it.copy(mealType = mealType, logDate = date)
+            }
+        }
+
+        loadPresets(userId)
     }
 
     private var presetsJob: Job? = null
@@ -309,7 +362,8 @@ class FoodSearchViewModel(
                     isAnalysing = false,
                     mode = SearchMode.PRESETS,
                     results = filterPresets(it.presets, it.query),
-                    message = "AI is not configured. Add DEEPSEEK_API_KEY to local.properties and rebuild."
+                    message = "AI is not configured. Add DEEPSEEK_API_KEY or GEMINI_API_KEY " +
+                        "to local.properties and rebuild."
                 )
             }
         }

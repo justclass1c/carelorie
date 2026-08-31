@@ -14,6 +14,9 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val deepseekApiKey: String = localProperties.getProperty("DEEPSEEK_API_KEY") ?: ""
+// Gemini backs photo recognition. DeepSeek has no vision model, so the camera feature
+// cannot work without this one.
+val geminiApiKey: String = localProperties.getProperty("GEMINI_API_KEY") ?: ""
 
 android {
     namespace = "com.xxx.carelorie"
@@ -31,6 +34,14 @@ android {
         // Supplied via local.properties (never committed). Empty means the app uses the
         // stub recogniser instead, which keeps every screen working without a key.
         buildConfigField("String", "DEEPSEEK_API_KEY", "\"$deepseekApiKey\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+    }
+
+    // Room now exports its schema on every version bump. The JSON lands in app/schemas and is
+    // meant to be committed: it is what lets Room verify a migration is complete, and what makes
+    // the next schema change reviewable in a diff instead of guessed at.
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 
     buildTypes {

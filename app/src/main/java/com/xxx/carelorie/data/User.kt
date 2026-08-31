@@ -14,6 +14,13 @@ data class User(
     val email: String,
     val password: String,
     /**
+     * ISO date the account was created, for the profile's "Member since" line.
+     *
+     * Null for accounts that existed before this column did — the profile screen falls back to
+     * the earliest day they logged anything, which for those users is the better answer anyway.
+     */
+    val createdAt: String? = null,
+    /**
      * Hashed one-time recovery key. The raw key is revealed to the user only once (on the
      * profile page); only this hash is stored, so it can verify a password reset but can never
      * be shown again. Empty = not generated yet.

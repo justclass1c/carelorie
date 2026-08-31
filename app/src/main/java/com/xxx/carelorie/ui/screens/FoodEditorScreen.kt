@@ -45,8 +45,11 @@ fun FoodEditorScreen(
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
-            snackbarHostState.showSnackbar(it)
+            // Consume before awaiting: showSnackbar suspends until the bar goes away, so
+            // leaving the screen cancels this effect and the message would stay set and
+            // replay every time you came back.
             viewModel.onEvent(FoodEditorEvent.ErrorConsumed)
+            snackbarHostState.showSnackbar(it)
         }
     }
 

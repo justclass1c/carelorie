@@ -1,14 +1,12 @@
 package com.xxx.carelorie.ui.components.dashboard
 
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.xxx.carelorie.ui.components.CarelorieCard
 import com.xxx.carelorie.data.DailyMacroIntake
 import com.xxx.carelorie.data.NutritionTargets
 
@@ -18,12 +16,10 @@ fun ProgressPreview(
     targets: NutritionTargets,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+    CarelorieCard(
         modifier = modifier.fillMaxWidth(),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        shape = MaterialTheme.shapes.large,
+        contentPadding = PaddingValues(0.dp)
     ) {
         WeeklyMacroChart(data = weeklyData, targets = targets)
     }

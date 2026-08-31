@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -30,8 +31,13 @@ import com.xxx.carelorie.Routes
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.xxx.carelorie.data.local.FoodPresetEntity
 import com.xxx.carelorie.data.nutrition.FoodCandidate
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.graphics.Color
+import com.xxx.carelorie.ui.components.LargeTitle
 import com.xxx.carelorie.ui.layout.ContentWidth
 import com.xxx.carelorie.ui.layout.constrainedWidth
+import com.xxx.carelorie.ui.components.food.PhotoSourceDialog
+import com.xxx.carelorie.ui.util.rememberFoodPhotoCapture
 import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.ui.viewmodels.FoodQueryEvent
 import com.xxx.carelorie.ui.viewmodels.FoodQueryViewModel
@@ -66,6 +72,12 @@ fun FoodQueryScreen(
             }
     }
 
+    val photoCapture = rememberFoodPhotoCapture(
+        onImage = { viewModel.onEvent(FoodQueryEvent.PhotoTaken(it)) },
+        onError = { viewModel.onEvent(FoodQueryEvent.PhotoFailed(it)) }
+    )
+    var photoSourceOpen by remember { mutableStateOf(false) }
+
     LaunchedEffect(userId) {
         viewModel.onEvent(FoodQueryEvent.Start(userId))
     }
@@ -73,6 +85,13 @@ fun FoodQueryScreen(
     LaunchedEffect(uiState.message) {
         val message = uiState.message ?: return@LaunchedEffect
         val canUndo = uiState.lastDeleted != null
+
+        // Clear the message before awaiting the result, not after. showSnackbar suspends for the
+        // whole time the bar is up, so leaving the tab cancels this effect mid-wait — and the
+        // message stayed set, which is why "Deleted …" reappeared on every return to the screen
+        // and never went away.
+        viewModel.onEvent(FoodQueryEvent.MessageShown)
+
         val result = snackbarHostState.showSnackbar(
             message = message,
             actionLabel = if (canUndo) "Undo" else null,
@@ -87,10 +106,10 @@ fun FoodQueryScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            // No back arrow: this is a top-level tab, like Dashboard and Goal.
-            TopAppBar(title = { Text("Presets") })
-        },
+        // No topBar. This is a tab, and the other four open with a large title inside their own
+        // scroll rather than a Material title bar — having one here shifted the content down and
+        // changed the typography every time you switched to it.
+        containerColor = Color.Transparent,
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { navController.navigate(Routes.foodEditor()) },
@@ -110,8 +129,15 @@ fun FoodQueryScreen(
                     .fillMaxHeight()
                     .constrainedWidth(ContentWidth.Reading)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .statusBarsPadding()
+                    .padding(horizontal = 20.dp)
             ) {
+                LargeTitle(
+                    title = "Foods",
+                    subtitle = "Your library and the built-in dishes",
+                    modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
+                )
+
                 if (uiState.isOffline) {
                     Notice("Offline — changes will sync when you reconnect.")
                 } else if (uiState.unsyncedCount > 0) {
@@ -166,8 +192,13 @@ fun FoodQueryScreen(
                     )
                     AssistChip(
                         onClick = { viewModel.onEvent(FoodQueryEvent.AiSearch) },
-                        label = { Text("Search With AI") },
+                        label = { Text("Estimate with AI") },
                         leadingIcon = { Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp)) }
+                    )
+                    AssistChip(
+                        onClick = { photoSourceOpen = true },
+                        label = { Text("Scan food") },
+                        leadingIcon = { Icon(Icons.Default.PhotoCamera, null, Modifier.size(18.dp)) }
                     )
                 }
 
@@ -297,6 +328,14 @@ fun FoodQueryScreen(
             }
         }
     }
+
+    if (photoSourceOpen) {
+        PhotoSourceDialog(
+            onDismiss = { photoSourceOpen = false },
+            onCamera = photoCapture.takePhoto,
+            onGallery = photoCapture.pickPhoto
+        )
+    }
 }
 
 @Composable
@@ -317,7 +356,7 @@ private fun ResultRow(candidate: FoodCandidate, onAdd: () -> Unit) {
     val preset = candidate.preset
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
@@ -369,7 +408,7 @@ private fun Notice(text: String, warning: Boolean = false) {
         } else {
             MaterialTheme.colorScheme.secondaryContainer
         },
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Text(
@@ -394,7 +433,7 @@ private fun PresetRow(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {

@@ -18,6 +18,7 @@ class AppContainer(context: Context) {
 
     private val database: AppDatabase = AppDatabase.getDatabase(context)
     private val supabaseRepository: SupabaseRepository = SupabaseRepository()
+    val connectivity: ConnectivityChecker = AndroidConnectivityChecker(context)
     val sessionManager: SessionManager = SessionManager(context)
     val themeManager: ThemeManager = ThemeManager(context)
 
@@ -31,22 +32,36 @@ class AppContainer(context: Context) {
         )
     }
 
-    val macroDataRepository: MacroDataRepository by lazy {
-        MacroDataRepository(supabaseRepository)
-    }
 
     val foodRepository: FoodRepository by lazy {
-        FoodRepository(supabaseRepository, database.foodLogDao(), database.foodPresetDao())
+        FoodRepository(
+            supabaseRepository = supabaseRepository,
+            foodLogDao = database.foodLogDao(),
+            foodPresetDao = database.foodPresetDao(),
+            connectivity = connectivity
+        )
+    }
+
+    val mealPresetRepository: MealPresetRepository by lazy {
+        MealPresetRepository(
+            mealPresetDao = database.mealPresetDao(),
+            foodRepository = foodRepository,
+            supabaseRepository = supabaseRepository,
+            connectivity = connectivity
+        )
     }
 
     val openFoodFactsService: OpenFoodFactsService by lazy { OpenFoodFactsService() }
     val deepSeekService: DeepSeekService by lazy { DeepSeekService() }
 
     /**
-     * Real recogniser when DEEPSEEK_API_KEY is set in local.properties, stub otherwise.
-     * Every screen works either way.
+     * Photos go to Gemini, text estimates to DeepSeek; whichever keys are present are used and
+     * the rest report themselves as unconfigured. Every screen works either way.
      */
     val foodRecognitionService: FoodRecognitionService by lazy {
-        FoodRecognitionServiceProvider.create(BuildConfig.DEEPSEEK_API_KEY)
+        FoodRecognitionServiceProvider.create(
+            deepSeekKey = BuildConfig.DEEPSEEK_API_KEY,
+            geminiKey = BuildConfig.GEMINI_API_KEY
+        )
     }
 }

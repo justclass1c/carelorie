@@ -11,3 +11,9 @@ sdk.dir=/path/to/your/Android/Sdk
 # Get a key at https://platform.deepseek.com. Note that any key compiled into an APK can be
 # extracted from it — use a rotatable key and rotate it after submission.
 DEEPSEEK_API_KEY=
+
+# Powers photo recognition ("Scan food with AI"). DeepSeek has no vision model, so without this
+# the camera button reports that it is not configured rather than guessing at the picture.
+#
+# Get a key at https://aistudio.google.com/apikey
+GEMINI_API_KEY=

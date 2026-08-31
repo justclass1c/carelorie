@@ -30,6 +30,7 @@ import androidx.navigation.NavController
 import com.xxx.carelorie.Routes
 import com.xxx.carelorie.data.remote.RemoteFoodLog
 import com.xxx.carelorie.ui.components.dashboard.MEAL_TYPES
+import com.xxx.carelorie.ui.components.LargeTitle
 import com.xxx.carelorie.ui.components.food.FoodLogCalendar
 import com.xxx.carelorie.ui.layout.isWideScreen
 import com.xxx.carelorie.ui.theme.MacroColors
@@ -59,8 +60,11 @@ fun FoodLogScreen(
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
-            snackbarHostState.showSnackbar(it)
+            // Consume before awaiting: showSnackbar suspends until the bar goes away, so
+            // leaving the screen cancels this effect and the message would stay set and
+            // replay every time you came back.
             viewModel.onEvent(FoodLogEvent.MessageConsumed)
+            snackbarHostState.showSnackbar(it)
         }
     }
 
@@ -79,7 +83,9 @@ fun FoodLogScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         if (wide) {
             // Tablet: calendar stays open beside the log instead of pushing it down.
-            Row(modifier = Modifier.fillMaxSize()) {
+            // statusBarsPadding on the Row, not on each column: the narrow branch had it and
+            // this one did not, so the tablet heading drew underneath the clock.
+            Row(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 Column(
                     modifier = Modifier
                         .weight(0.4f)
@@ -140,11 +146,9 @@ fun FoodLogScreen(
                     .statusBarsPadding()
                     .padding(16.dp)
             ) {
-                Text(
-                    text = "Food Log",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                LargeTitle(
+                    title = "Diary",
+                    modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
                 )
 
                 OfflineBanner(uiState.isOffline)
@@ -220,7 +224,7 @@ private fun OfflineBanner(isOffline: Boolean) {
                 .padding(bottom = 12.dp)
                 .background(
                     MaterialTheme.colorScheme.surfaceVariant,
-                    RoundedCornerShape(8.dp)
+                    RoundedCornerShape(12.dp)
                 )
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -267,7 +271,7 @@ private fun DateNavigator(
                 .then(
                     if (onDateClick != null) {
                         Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(12.dp))
                             .clickable(onClick = onDateClick)
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     } else {
@@ -402,7 +406,7 @@ private fun MealGroupCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -479,9 +483,9 @@ private fun LogEntryRow(entry: RemoteFoodLog, onDelete: () -> Unit, onEdit: () -
                 text = entry.foodName,
                 style = MaterialTheme.typography.bodyLarge
             )
-            if (entry.quantity != 1f) {
+            if (entry.servings != 1f) {
                 Text(
-                    text = "${formatServings(entry.quantity)} servings",
+                    text = "${formatServings(entry.servings)} servings",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -539,7 +543,7 @@ private fun LegendDot(color: Color, label: String) {
         Box(
             modifier = Modifier
                 .size(12.dp)
-                .background(color, RoundedCornerShape(6.dp))
+                .background(color, RoundedCornerShape(10.dp))
         )
         Spacer(Modifier.width(6.dp))
         Text(
@@ -599,13 +603,13 @@ private fun EditEntryDialog(
     onSave: (Float, String) -> Unit,
     onDelete: () -> Unit
 ) {
-    var quantity by remember(entry.localId) { mutableFloatStateOf(entry.quantity) }
+    var quantity by remember(entry.localId) { mutableFloatStateOf(entry.servings) }
     var meal by remember(entry.localId) { mutableStateOf(entry.mealType) }
     var mealMenuOpen by remember { mutableStateOf(false) }
 
     // Macros are stored as the total for the logged servings, so one serving is total / quantity
     // and the preview scales from there.
-    val perServing = if (entry.quantity > 0f) entry.quantity else 1f
+    val perServing = if (entry.servings > 0f) entry.servings else 1f
     val factor = quantity / perServing
 
     AlertDialog(

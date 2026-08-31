@@ -25,6 +25,8 @@ import com.xxx.carelorie.ui.screens.FoodLogScreen
 import com.xxx.carelorie.ui.screens.FoodSearchScreen
 import com.xxx.carelorie.ui.screens.GoalScreen
 import com.xxx.carelorie.ui.screens.LoginScreen
+import com.xxx.carelorie.ui.screens.OnboardingScreen
+import com.xxx.carelorie.ui.screens.SavedMealsScreen
 import com.xxx.carelorie.ui.screens.FoodQueryScreen
 import com.xxx.carelorie.ui.screens.Profile
 import com.xxx.carelorie.ui.screens.RegisterScreen
@@ -36,7 +38,9 @@ import com.xxx.carelorie.ui.viewmodels.FoodEditorViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodLogViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodSearchViewModel
 import com.xxx.carelorie.ui.viewmodels.FoodQueryViewModel
+import com.xxx.carelorie.ui.viewmodels.OnboardingViewModel
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
+import com.xxx.carelorie.ui.viewmodels.SavedMealsViewModel
 
 /** Route names in one place so the navigation bar and the graph can never drift apart. */
 object Routes {
@@ -51,6 +55,8 @@ object Routes {
     const val DIET_CHAT = "dietChat"
     const val FOOD_QUERY = "foodQuery"
     const val FOOD_EDITOR = "foodEditor"
+    const val ONBOARDING = "onboarding"
+    const val SAVED_MEALS = "savedMeals"
 
     /**
      * @param date the day to log into. Omit for today; the food log passes the day it is showing,
@@ -114,7 +120,7 @@ fun AppNavigation(
                 viewModel = authViewModel,
                 onRegisterSuccess = { userId: String ->
                     currentUserId = userId
-                    navController.navigate(Routes.profile(isOnboarding = true)) {
+                    navController.navigate(Routes.ONBOARDING) {
                         popUpTo(Routes.REGISTER) { inclusive = true }
                     }
                 }
@@ -226,6 +232,30 @@ fun AppNavigation(
                     userId = userId,
                     presetLocalId = backStackEntry.arguments?.getString("presetLocalId"),
                     viewModel = foodEditorViewModel
+                )
+            }
+        }
+
+        composable(Routes.ONBOARDING) {
+            RequireUser(currentUserId, navController) { userId ->
+                val onboardingViewModel: OnboardingViewModel =
+                    viewModel(factory = CarelorieViewModelFactories.Onboarding)
+                OnboardingScreen(
+                    navController = navController,
+                    userId = userId,
+                    viewModel = onboardingViewModel
+                )
+            }
+        }
+
+        composable(Routes.SAVED_MEALS) {
+            RequireUser(currentUserId, navController) { userId ->
+                val savedMealsViewModel: SavedMealsViewModel =
+                    viewModel(factory = CarelorieViewModelFactories.SavedMeals)
+                SavedMealsScreen(
+                    navController = navController,
+                    userId = userId,
+                    viewModel = savedMealsViewModel
                 )
             }
         }

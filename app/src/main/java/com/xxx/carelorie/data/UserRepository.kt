@@ -15,10 +15,16 @@ class UserRepository(
     private val sessionManager: SessionManager,
     private val supabaseRepository: SupabaseRepository
 ) {
-    fun saveSession(userId: String) = sessionManager.saveUserId(userId)
-    fun getSessionUserId(): String = sessionManager.getUserId()
     fun clearSession() = sessionManager.clearSession()
-    fun hasSession(): Boolean = getSessionUserId().isNotEmpty()
+
+    /**
+     * The one form of an email address this app stores or looks up by.
+     *
+     * Addresses are case-insensitive in practice, and a trailing space from keyboard autocomplete
+     * is not part of anybody's address. Normalising in one place is what stops "register as
+     * Foo@Bar.com, fail to log in as foo@bar.com".
+     */
+    private fun normaliseEmail(email: String): String = email.trim().lowercase()
 
     /**
      * Creates an account.
@@ -33,7 +39,13 @@ class UserRepository(
      */
     suspend fun registerUser(user: User): Result<String> {
         return try {
-            val stored = user.copy(password = hashPassword(user.password))
+            val stored = user.copy(
+                email = normaliseEmail(user.email),
+                password = hashPassword(user.password),
+                // Stamped here rather than defaulted on the entity, so re-inserting a user
+                // fetched from Supabase during sign-in cannot reset their join date.
+                createdAt = user.createdAt ?: LocalDate.now().toString()
+            )
             userDao.insertUser(stored)
             pushUser(stored)
             Result.success(stored.userId)
@@ -57,9 +69,11 @@ class UserRepository(
     }
 
     suspend fun getUserByEmail(email: String): User? {
+        val normalised = normaliseEmail(email)
+
         // 1. Try remote first to get latest credentials and sync profile
         val remote = try {
-            supabaseRepository.fetchUserByEmail(email)
+            supabaseRepository.fetchUserByEmail(normalised)
         } catch (e: Exception) {
             null
         }
@@ -67,7 +81,9 @@ class UserRepository(
         if (remote != null && remote.userId != null) {
             val user = User(
                 userId = remote.userId,
-                email = remote.email,
+                // Store the canonical form, so an account created before emails were normalised
+                // is healed the first time its owner signs in.
+                email = normaliseEmail(remote.email),
                 password = remote.password,
                 recoveryKey = remote.recoveryKey
             )
@@ -79,7 +95,7 @@ class UserRepository(
         // 2. Fall back to local. Reaching here means either no connection, or an account that was
         //    created offline and has never been pushed — so retry the push, which is what lets a
         //    registration made on a dead network heal itself.
-        val local = userDao.getUserByEmail(email) ?: return null
+        val local = userDao.getUserByEmail(normalised) ?: return null
         pushUser(local)
         return local
     }
@@ -115,6 +131,20 @@ class UserRepository(
                     liftingExperience = remote.liftingExperience,
                     weight = remote.weight,
                     weightAdvice = remote.weightAdvice,
+                    everWeighedOver95 = remote.everWeighedOver95,
+                    weightTrend = remote.weightTrend,
+                    bodyFatBand = remote.bodyFatBand,
+                    exerciseFrequency = remote.exerciseFrequency,
+                    activityLevel = remote.activityLevel,
+                    cardioExperience = remote.cardioExperience,
+                    goal = remote.goal,
+                    targetWeight = remote.targetWeight,
+                    dietType = remote.dietType,
+                    trainingType = remote.trainingType,
+                    calorieDistribution = remote.calorieDistribution,
+                    proteinPreference = remote.proteinPreference,
+                    estimatedTdee = remote.estimatedTdee,
+                    onboardingCompletedAt = remote.onboardingCompletedAt,
                     theme = remote.theme,
                     calorieLimit = remote.calorieLimit,
                     proteinLimit = remote.proteinLimit,
@@ -157,6 +187,20 @@ class UserRepository(
         liftingExperience = profile.liftingExperience,
         weight = profile.weight,
         weightAdvice = profile.weightAdvice,
+        everWeighedOver95 = profile.everWeighedOver95,
+        weightTrend = profile.weightTrend,
+        bodyFatBand = profile.bodyFatBand,
+        exerciseFrequency = profile.exerciseFrequency,
+        activityLevel = profile.activityLevel,
+        cardioExperience = profile.cardioExperience,
+        goal = profile.goal,
+        targetWeight = profile.targetWeight,
+        dietType = profile.dietType,
+        trainingType = profile.trainingType,
+        calorieDistribution = profile.calorieDistribution,
+        proteinPreference = profile.proteinPreference,
+        estimatedTdee = profile.estimatedTdee,
+        onboardingCompletedAt = profile.onboardingCompletedAt,
         theme = profile.theme,
         calorieLimit = profile.calorieLimit,
         proteinLimit = profile.proteinLimit,
@@ -217,15 +261,32 @@ class UserRepository(
     /**
      * Sets a new password after a verified reset. Hashes the raw value and updates both the local
      * Room `users` row and the Supabase `users` mirror.
+     *
+     * Spending the recovery key is part of the reset, not an extra. It is documented as one-time,
+     * and leaving it in place let anyone who had seen it once reset the password again at will.
+     * Clearing rather than rotating means the next profile visit mints a fresh one and reveals it,
+     * which is the flow the user already knows.
      */
     suspend fun resetPassword(email: String, newPassword: String): Boolean {
-        val user = userDao.getUserByEmail(email) ?: return false
+        val normalised = normaliseEmail(email)
+        val user = userDao.getUserByEmail(normalised) ?: return false
         val hashed = hashPassword(newPassword)
-        userDao.updatePasswordByEmail(email, hashed)
-        supabaseRepository.upsertUser(user.toRemoteUser().copy(password = hashed))
+        userDao.updatePasswordByEmail(normalised, hashed)
+        userDao.updateRecoveryKey(user.userId, "")
+        supabaseRepository.upsertUser(
+            user.toRemoteUser().copy(email = normalised, password = hashed, recoveryKey = "")
+        )
         return true
     }
 
+    /**
+     * Removes the account itself: credentials, profile and weight history.
+     *
+     * The user's food data is owned by [FoodRepository] and [MealPresetRepository], so deleting an
+     * account means calling their removals too — see `ProfileViewModel.deleteAccount`, which
+     * sequences all three. This used to be the whole of "delete account", which left every diary
+     * entry, custom food and saved meal behind on the device and on the server.
+     */
     suspend fun deleteAccount(userId: String) {
         // Local cleanup
         userDao.deleteUser(userId)
@@ -235,6 +296,10 @@ class UserRepository(
         supabaseRepository.deleteProfile(userId)
         supabaseRepository.deleteUser(userId)
     }
+
+    /** ISO creation date, or null for accounts that predate the column. */
+    suspend fun getAccountCreated(userId: String): String? =
+        try { userDao.getUserById(userId)?.createdAt } catch (e: Exception) { null }
 
     suspend fun getProfile(userId: String): UserProfile? {
         // Sync with remote first if possible to ensure we have latest data

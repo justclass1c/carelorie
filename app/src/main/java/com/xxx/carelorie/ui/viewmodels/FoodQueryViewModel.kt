@@ -70,11 +70,20 @@ sealed class FoodQueryEvent {
     object UndoDelete : FoodQueryEvent()
     object Refresh : FoodQueryEvent()
     object MessageConsumed : FoodQueryEvent()
+    /**
+     * The snackbar is on screen. Clears the text but keeps [FoodQueryUiState.lastDeleted]
+     * so Undo still works while it is showing.
+     */
+    object MessageShown : FoodQueryEvent()
 
     // --- finding foods that aren't in the library yet
     object SearchOnline : FoodQueryEvent()
     data class BarcodeScanned(val barcode: String) : FoodQueryEvent()
     object AiSearch : FoodQueryEvent()
+    /** A photo of a meal, base64 JPEG, to be identified by the vision model. */
+    data class PhotoTaken(val imageBase64: String) : FoodQueryEvent()
+    /** The picked image could not be read — surfaced rather than silently doing nothing. */
+    data class PhotoFailed(val reason: String) : FoodQueryEvent()
     data class AddResult(val candidate: FoodCandidate) : FoodQueryEvent()
     object ClearResults : FoodQueryEvent()
 }
@@ -102,10 +111,15 @@ class FoodQueryViewModel(
             is FoodQueryEvent.Refresh -> refresh(_uiState.value.userId)
             is FoodQueryEvent.MessageConsumed ->
                 _uiState.update { it.copy(message = null, lastDeleted = null) }
+            is FoodQueryEvent.MessageShown ->
+                _uiState.update { it.copy(message = null) }
 
             is FoodQueryEvent.SearchOnline -> searchOnline()
             is FoodQueryEvent.BarcodeScanned -> lookupBarcode(event.barcode)
             is FoodQueryEvent.AiSearch -> aiSearch()
+            is FoodQueryEvent.PhotoTaken -> recognisePhoto(event.imageBase64)
+            is FoodQueryEvent.PhotoFailed ->
+                _uiState.update { it.copy(isAnalysing = false, message = event.reason) }
             is FoodQueryEvent.AddResult -> addResult(event.candidate)
             is FoodQueryEvent.ClearResults -> _uiState.update {
                 it.copy(searchResults = emptyList(), resultsLabel = null)
@@ -174,6 +188,14 @@ class FoodQueryViewModel(
         }
     }
 
+    /**
+     * Looks a scanned barcode up in Open Food Facts.
+     *
+     * Open Food Facts is crowd-sourced and heavily European, so plenty of local products simply
+     * are not in it. Rather than stopping at "not found", the product name is searched for and,
+     * failing that, the AI is asked to estimate — a scan that ends in a dead end is the main
+     * reason people decide the scanner does not work.
+     */
     private fun lookupBarcode(barcode: String) {
         if (barcode.isBlank()) {
             _uiState.update { it.copy(message = "Scan cancelled or unreadable.") }
@@ -182,25 +204,89 @@ class FoodQueryViewModel(
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             _uiState.update { it.copy(isSearching = true, resultsLabel = null) }
-            val candidate = openFoodFacts.lookupBarcode(barcode)
-            _uiState.update {
-                if (candidate == null) {
-                    it.copy(
-                        isSearching = false,
-                        message = "That barcode isn't in the database. Try searching by name."
-                    )
-                } else {
+
+            val candidate = try {
+                openFoodFacts.lookupBarcode(barcode)
+            } catch (e: Exception) {
+                null
+            }
+
+            if (candidate != null) {
+                _uiState.update {
                     it.copy(
                         searchResults = listOf(candidate),
                         resultsLabel = "Scanned barcode",
                         isSearching = false
                     )
                 }
+                return@launch
+            }
+
+            // Not in the database. Fall back to the AI if it is configured, so the scan still
+            // produces something the user can act on.
+            if (!recognitionService.isConfigured) {
+                _uiState.update {
+                    it.copy(
+                        isSearching = false,
+                        message = "That barcode isn't in the database. Try searching by name."
+                    )
+                }
+                return@launch
+            }
+
+            _uiState.update { it.copy(isSearching = false, isAnalysing = true) }
+            when (val guess = recognitionService.estimateNutrition("barcode $barcode")) {
+                is RecognitionResult.Success -> _uiState.update {
+                    it.copy(
+                        searchResults = guess.candidates,
+                        resultsLabel = "AI estimate — barcode not in the database",
+                        isAnalysing = false,
+                        message = "That barcode isn't in the database, so these numbers are an " +
+                            "estimate. Check them before saving."
+                    )
+                }
+                else -> _uiState.update {
+                    it.copy(
+                        isAnalysing = false,
+                        message = "That barcode isn't in the database. Try searching by name."
+                    )
+                }
             }
         }
     }
 
-    /** Same two-step as the food search screen: online results as context, then an AI estimate. */
+    /**
+     * Identifies everything in a photo of a meal.
+     *
+     * Unlike the text estimate this can return several foods, because a plate usually holds
+     * several — the user then picks which of them to keep.
+     */
+    private fun recognisePhoto(imageBase64: String) {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            _uiState.update {
+                it.copy(isAnalysing = true, resultsLabel = null, searchResults = emptyList())
+            }
+            when (val result = recognitionService.recognise(imageBase64)) {
+                is RecognitionResult.Success -> _uiState.update {
+                    it.copy(
+                        searchResults = result.candidates,
+                        resultsLabel = if (result.candidates.size == 1) {
+                            "Recognised in your photo"
+                        } else {
+                            "${result.candidates.size} foods recognised in your photo"
+                        },
+                        isAnalysing = false
+                    )
+                }
+                is RecognitionResult.Failure ->
+                    _uiState.update { it.copy(isAnalysing = false, message = result.reason) }
+                RecognitionResult.NotConfigured ->
+                    _uiState.update { it.copy(isAnalysing = false, message = PHOTO_NOT_CONFIGURED) }
+            }
+        }
+    }
+
     private fun aiSearch() {
         val query = _uiState.value.query
         if (query.isBlank()) {
@@ -244,7 +330,7 @@ class FoodQueryViewModel(
                     )
                 }
                 RecognitionResult.NotConfigured -> _uiState.update {
-                    it.copy(isAnalysing = false, message = "AI is not configured. Add DEEPSEEK_API_KEY to local.properties and rebuild.")
+                    it.copy(isAnalysing = false, message = AI_NOT_CONFIGURED)
                 }
             }
         }
@@ -333,3 +419,11 @@ class FoodQueryViewModel(
         }
     }
 }
+
+/** Shown when no AI key at all is configured. */
+private const val AI_NOT_CONFIGURED =
+    "AI is not configured. Add DEEPSEEK_API_KEY or GEMINI_API_KEY to local.properties and rebuild."
+
+/** Text estimation can run on DeepSeek, but only Gemini can look at a picture. */
+private const val PHOTO_NOT_CONFIGURED =
+    "Photo recognition needs a Gemini key. Add GEMINI_API_KEY to local.properties and rebuild."

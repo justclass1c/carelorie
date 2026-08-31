@@ -1,7 +1,6 @@
 package com.xxx.carelorie.ui.components.dashboard
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
+import com.xxx.carelorie.ui.components.CarelorieCard
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -25,19 +25,16 @@ fun StreakBar(streakCount: Int) {
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
-            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    CarelorieCard(modifier = Modifier.padding(horizontal = 4.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         Text(
-            text = "Current Streak: $streakCount days",
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 8.dp)
+            text = if (streakCount == 1) "1 day streak" else "$streakCount day streak",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 10.dp)
         )
         
         if (isTablet) {
@@ -51,27 +48,32 @@ fun StreakBar(streakCount: Int) {
                 StreakRow(count = streakCount, startIdx = boxesPerRow, limit = boxesPerRow)
             }
         }
+        }
     }
 }
 
+/**
+ * One row of the streak grid.
+ *
+ * Rounded, filled cells with an unfilled state that is a faint tint rather than an outlined empty
+ * square. Thirty hairline boxes read as graph paper; thirty soft dots read as progress.
+ */
 @Composable
 fun StreakRow(count: Int, startIdx: Int, limit: Int) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val outlineColor = MaterialTheme.colorScheme.outline
-    
+    val filled = MaterialTheme.colorScheme.primary
+    val empty = MaterialTheme.colorScheme.surfaceVariant
+
     Row(
         modifier = Modifier.padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.Center
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         for (i in 0 until limit) {
-            val currentIdx = startIdx + i
-            val isFilled = currentIdx < count
+            val isFilled = (startIdx + i) < count
             Box(
                 modifier = Modifier
-                    .size(20.dp)
-                    .padding(2.dp)
-                    .border(1.dp, outlineColor)
-                    .background(if (isFilled) primaryColor else Color.Transparent)
+                    .size(14.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isFilled) filled else empty)
             )
         }
     }

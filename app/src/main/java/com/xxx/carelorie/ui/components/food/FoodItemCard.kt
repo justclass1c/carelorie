@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.xxx.carelorie.ui.theme.MacroColors
 import androidx.compose.ui.unit.sp
 import com.xxx.carelorie.data.remote.RemoteFoodPreset
 
@@ -26,7 +27,7 @@ fun FoodItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
@@ -40,10 +41,10 @@ fun FoodItemCard(
             Box(
                 modifier = Modifier
                     .size(64.dp)
-                    .background(Color.LightGray, RoundedCornerShape(8.dp)),
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Text("IMG", fontSize = 12.sp, color = Color.DarkGray)
+                Text("IMG", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -58,10 +59,10 @@ fun FoodItemCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MacroInfo(label = "P", value = "${food.protein.toInt()}g", color = Color(0xFFE91E63))
-                    MacroInfo(label = "C", value = "${food.carbs.toInt()}g", color = Color(0xFF2196F3))
-                    MacroInfo(label = "F", value = "${food.fat.toInt()}g", color = Color(0xFF4CAF50))
-                    MacroInfo(label = "Cal", value = "${food.calories}", color = Color(0xFFFF9800))
+                    MacroInfo(label = "P", value = "${food.protein.toInt()}g", color = MacroColors.Protein)
+                    MacroInfo(label = "C", value = "${food.carbs.toInt()}g", color = MacroColors.Carbs)
+                    MacroInfo(label = "F", value = "${food.fat.toInt()}g", color = MacroColors.Fat)
+                    MacroInfo(label = "Cal", value = "${food.calories}", color = MacroColors.Calories)
                 }
             }
 

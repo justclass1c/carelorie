@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.Carelorie" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        The theme that is up before the first Compose frame.
+
+        windowBackground is the point of it: without one the system uses the platform default,
+        which is white, so a dark-mode user saw a white flash on every cold start. values-night
+        supplies the dark variant.
+    -->
+    <style name="Theme.Carelorie" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/launch_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
 </resources>

@@ -1,6 +1,5 @@
 package com.xxx.carelorie.ui.screens
 
-import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Box
@@ -37,8 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,6 +46,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.xxx.carelorie.ui.components.dashboard.CarelorieCalendar
+import com.xxx.carelorie.ui.components.LargeTitle
 import com.xxx.carelorie.ui.components.dashboard.StreakBar
 import com.xxx.carelorie.ui.components.dashboard.WeightGraph
 import com.xxx.carelorie.ui.components.dashboard.WeightUpdateDialog
@@ -72,7 +70,6 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.onEvent(DashboardEvent.LoadData(userId))
-                viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId))
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -81,15 +78,17 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
         }
     }
 
-// Read once and branch on the local: checking the state and then re-reading it with !!
-// could throw if the error cleared between the two reads.
-val loadError = uiState.error
+    // Read once and branch on the local: checking the state and then re-reading it with !!
+    // could throw if the error cleared between the two reads.
+    val loadError = uiState.error
 
-LaunchedEffect(uiState.weightHistory) {
-    if (uiState.weightHistory.isNotEmpty() && uiState.goalInsight == null && !uiState.isGoalInsightLoading) {
-        viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId))
+    // Asked for once, when there is history to talk about and nothing on screen yet. The
+    // view model itself refuses duplicate requests, so resuming the tab costs nothing.
+    LaunchedEffect(uiState.weightHistory.size) {
+        if (uiState.weightHistory.isNotEmpty()) {
+            viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId))
+        }
     }
-}
 
     if (uiState.isLoading && uiState.weightHistory.isEmpty() && uiState.trackedDates.isEmpty()) {
         // Show only the loading indicator while the initial data load is in progress.
@@ -112,10 +111,15 @@ LaunchedEffect(uiState.weightHistory) {
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(16.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            LargeTitle(
+                title = "Goal",
+                modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
+            )
+
             if (useTwoColumns) {
                 // Wide layout: calendar and weight graph side by side
                 StreakBar(streakCount = uiState.currentStreak)
@@ -169,7 +173,7 @@ LaunchedEffect(uiState.weightHistory) {
                         AIInsightBox(
                             insight = uiState.goalInsight,
                             isLoading = uiState.isGoalInsightLoading,
-                            onRefresh = { viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId)) }
+                            onRefresh = { viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId, force = true)) }
                         )
                     }
                 }
@@ -212,7 +216,7 @@ LaunchedEffect(uiState.weightHistory) {
                 AIInsightBox(
                     insight = uiState.goalInsight,
                     isLoading = uiState.isGoalInsightLoading,
-                    onRefresh = { viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId)) }
+                    onRefresh = { viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId, force = true)) }
                 )
 
                 Spacer(Modifier.height(16.dp))
@@ -242,10 +246,10 @@ private fun AIInsightBox(
     val insightColor = Color(0xFFCF4A4A)
 
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(1.dp, Color(0xFFE0E0E0)),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
