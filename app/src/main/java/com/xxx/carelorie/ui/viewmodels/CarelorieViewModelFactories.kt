@@ -39,7 +39,13 @@ object CarelorieViewModelFactories {
     val Profile = viewModelFactory {
         initializer {
             val c = container()
-            ProfileViewModel(c.userRepository, c.foodRepository, c.sessionManager, c.themeManager)
+            ProfileViewModel(
+                repository = c.userRepository,
+                foodRepository = c.foodRepository,
+                mealPresetRepository = c.mealPresetRepository,
+                sessionManager = c.sessionManager,
+                themeManager = c.themeManager
+            )
         }
     }
 

@@ -6,6 +6,7 @@ import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.data.ThemeManager
 import com.xxx.carelorie.data.UserProfile
 import com.xxx.carelorie.data.FoodRepository
+import com.xxx.carelorie.data.MealPresetRepository
 import com.xxx.carelorie.data.TrackingStats
 import com.xxx.carelorie.data.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,6 +71,8 @@ sealed class ProfileUiEvent {
     object ErrorConsumed : ProfileUiEvent()
     object ResetSaveStatus : ProfileUiEvent()
     object RecoveryKeyDismissed : ProfileUiEvent()
+    /** Sent once the screen has acted on [ProfileUiState.isLoggedOut]. */
+    object LogoutHandled : ProfileUiEvent()
     object RegenerateRecoveryKeyClicked : ProfileUiEvent()
     data class RegeneratePasswordChanged(val password: String) : ProfileUiEvent()
     object ToggleRegeneratePasswordVisibility : ProfileUiEvent()
@@ -80,6 +83,7 @@ sealed class ProfileUiEvent {
 class ProfileViewModel(
     private val repository: UserRepository,
     private val foodRepository: FoodRepository,
+    private val mealPresetRepository: MealPresetRepository,
     private val sessionManager: SessionManager,
     private val themeManager: ThemeManager
 ) : ViewModel() {
@@ -109,6 +113,7 @@ class ProfileViewModel(
             is ProfileUiEvent.ErrorConsumed -> _uiState.update { it.copy(errorMessage = null) }
             is ProfileUiEvent.ResetSaveStatus -> _uiState.update { it.copy(isSaveSuccess = false) }
             is ProfileUiEvent.RecoveryKeyDismissed -> _uiState.update { it.copy(recoveryKey = "") }
+            is ProfileUiEvent.LogoutHandled -> _uiState.update { it.copy(isLoggedOut = false) }
             is ProfileUiEvent.RegenerateRecoveryKeyClicked -> _uiState.update { it.copy(showRegenerateDialog = true, regenerateError = null) }
             is ProfileUiEvent.RegeneratePasswordChanged -> _uiState.update { it.copy(regeneratePassword = event.password, regenerateError = null) }
             is ProfileUiEvent.ToggleRegeneratePasswordVisibility -> _uiState.update { it.copy(regeneratePasswordVisible = !it.regeneratePasswordVisible) }
@@ -122,15 +127,31 @@ class ProfileViewModel(
         _uiState.update { it.copy(isLoggedOut = true) }
     }
 
+    /**
+     * Removes the account and everything logged under it.
+     *
+     * The food data goes first: if the account row were removed and one of these failed, the
+     * orphaned entries would have nothing left to identify them by.
+     */
     private fun deleteAccount() {
         viewModelScope.launch {
-            repository.deleteAccount(_uiState.value.userId)
+            val userId = _uiState.value.userId
+            foodRepository.deleteAllDataForUser(userId)
+            mealPresetRepository.deleteAllForUser(userId)
+            repository.deleteAccount(userId)
             sessionManager.clearSession()
             _uiState.update { it.copy(isLoggedOut = true) }
         }
     }
 
     private fun loadProfile(userId: String, isOnboarding: Boolean) {
+        // A different account than the one this ViewModel last held: drop the old state rather
+        // than letting the previous user's name, stats and recovery key show through. The
+        // ViewModel is owned by the Activity, so it outlives a sign-out.
+        val previousUserId = _uiState.value.userId
+        if (previousUserId.isNotEmpty() && previousUserId != userId) {
+            _uiState.value = ProfileUiState()
+        }
         _uiState.update { it.copy(userId = userId, isLoading = true, isOnboarding = isOnboarding) }
         viewModelScope.launch {
             val profile = repository.getProfile(userId)
@@ -305,8 +326,16 @@ class ProfileViewModel(
 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val profile = UserProfile(
-                userId = state.userId,
+
+            // Edit the stored profile rather than building a fresh one.
+            //
+            // This form owns twelve fields; UserProfile has twenty-seven. Constructing a new
+            // instance from the form alone left the other fifteen — the whole onboarding plan,
+            // the cached TDEE and the coach's insight — at their null defaults, and the DAO
+            // writes with REPLACE. Saving a changed display name wiped the user's plan and reset
+            // onboardingCompletedAt, so the app went back to asking them to finish setting up.
+            val existing = repository.getProfile(state.userId)
+            val profile = (existing ?: UserProfile(userId = state.userId)).copy(
                 name = state.name,
                 birthday = state.birthday,
                 gender = state.gender,
@@ -320,7 +349,17 @@ class ProfileViewModel(
                 fatLimit = state.fatLimit.toFloatOrNull() ?: 65f
             )
             repository.saveProfile(profile)
-            _uiState.update { it.copy(isLoading = false, isEditMode = false, isSaveSuccess = true, isOnboarding = false) }
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isEditMode = false,
+                    isSaveSuccess = true,
+                    isOnboarding = false,
+                    // The plan survived the save, so keep the profile's progress readout honest.
+                    onboardingProgress = profile.onboardingProgress,
+                    hasCompletedOnboarding = profile.hasCompletedOnboarding
+                )
+            }
         }
     }
 }

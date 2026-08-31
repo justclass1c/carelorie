@@ -10,9 +10,13 @@ import java.util.UUID
 /**
  * A named group of foods the user eats together — "Post-gym shake", "Usual breakfast".
  *
- * Saved from a meal card on the dashboard, then logged again in one tap. Local only: there is no
- * `meal_presets` table in Supabase, and inventing one client-side would fail every insert. Sync
- * can come later without changing anything here.
+ * Saved from a meal card on the dashboard, then logged again in one tap.
+ *
+ * Offline-first, like the diary: written to Room first and pushed to Supabase after, so saving a
+ * meal works with no connection and the library follows the user to a new phone. [localId] is the
+ * primary key on both sides — it is a UUID made on the device, so the server needs no id of its
+ * own and syncing is a plain upsert rather than the insert-then-read-the-id round trip that the
+ * diary needs.
  */
 @Entity(tableName = "meal_presets")
 data class MealPresetEntity(
@@ -22,7 +26,10 @@ data class MealPresetEntity(
     /** The meal it was saved from, used as the default when logging it again. */
     val mealType: String,
     /** ISO timestamp, so the list can show newest first. */
-    val createdAt: String
+    val createdAt: String,
+    val isSynced: Boolean = false,
+    /** Deleted locally, but the server copy still needs removing on the next sync. */
+    val isPendingDelete: Boolean = false
 )
 
 /**

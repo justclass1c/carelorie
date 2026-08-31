@@ -43,14 +43,21 @@ interface FoodLogDao {
     @Query("SELECT DISTINCT logDate FROM food_log_entries WHERE userId = :userId AND isPendingDelete = 0")
     suspend fun getAllLoggedDates(userId: String): List<String>
 
+    /**
+     * Entries in a closed date range.
+     *
+     * Both ends are inclusive and both are required. An open-ended version of this used to exist,
+     * and pairing it with a bounded re-insert is what let a month refresh return — and delete —
+     * days outside the month it was asked about. See [clearSyncedBetween].
+     */
     @Query(
         """
         SELECT * FROM food_log_entries
-        WHERE userId = :userId AND logDate >= :from AND isPendingDelete = 0
+        WHERE userId = :userId AND logDate >= :from AND logDate <= :to AND isPendingDelete = 0
         ORDER BY loggedAt ASC
         """
     )
-    suspend fun getFrom(userId: String, from: String): List<FoodLogEntity>
+    suspend fun getBetween(userId: String, from: String, to: String): List<FoodLogEntity>
 
     @Query("SELECT * FROM food_log_entries WHERE localId = :localId LIMIT 1")
     suspend fun getByLocalId(localId: String): FoodLogEntity?
@@ -73,12 +80,21 @@ interface FoodLogDao {
     /**
      * Clears synced rows in a range before re-inserting the server copy.
      * Unsynced rows are left alone so nothing written offline is ever lost.
+     *
+     * [to] is not optional, and must be the same upper bound the caller re-inserts up to. When the
+     * delete was open-ended, refreshing a past month wiped every synced entry from that month up
+     * to today and only put that one month back.
      */
     @Query(
         """
         DELETE FROM food_log_entries
-        WHERE userId = :userId AND logDate >= :from AND isSynced = 1 AND isPendingDelete = 0
+        WHERE userId = :userId AND logDate >= :from AND logDate <= :to
+          AND isSynced = 1 AND isPendingDelete = 0
         """
     )
-    suspend fun clearSyncedFrom(userId: String, from: String)
+    suspend fun clearSyncedBetween(userId: String, from: String, to: String)
+
+    /** Every entry belonging to a user, for account deletion. */
+    @Query("DELETE FROM food_log_entries WHERE userId = :userId")
+    suspend fun deleteAllForUser(userId: String)
 }

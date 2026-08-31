@@ -484,9 +484,9 @@ private fun LogEntryRow(entry: RemoteFoodLog, onDelete: () -> Unit, onEdit: () -
                 text = entry.foodName,
                 style = MaterialTheme.typography.bodyLarge
             )
-            if (entry.quantity != 1f) {
+            if (entry.servings != 1f) {
                 Text(
-                    text = "${formatServings(entry.quantity)} servings",
+                    text = "${formatServings(entry.servings)} servings",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -604,13 +604,13 @@ private fun EditEntryDialog(
     onSave: (Float, String) -> Unit,
     onDelete: () -> Unit
 ) {
-    var quantity by remember(entry.localId) { mutableFloatStateOf(entry.quantity) }
+    var quantity by remember(entry.localId) { mutableFloatStateOf(entry.servings) }
     var meal by remember(entry.localId) { mutableStateOf(entry.mealType) }
     var mealMenuOpen by remember { mutableStateOf(false) }
 
     // Macros are stored as the total for the logged servings, so one serving is total / quantity
     // and the preview scales from there.
-    val perServing = if (entry.quantity > 0f) entry.quantity else 1f
+    val perServing = if (entry.servings > 0f) entry.servings else 1f
     val factor = quantity / perServing
 
     AlertDialog(

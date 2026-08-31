@@ -87,6 +87,9 @@ class DashboardViewModel(
     private var todayLogsJob: Job? = null
     private var goalInsightJob: Job? = null
 
+    /** Which account the state on screen belongs to. Null until the first load. */
+    private var loadedForUser: String? = null
+
     fun onEvent(event: DashboardEvent) {
         when (event) {
             is DashboardEvent.LoadData -> loadDashboardData(event.userId)
@@ -101,6 +104,16 @@ class DashboardViewModel(
     }
 
     private fun loadDashboardData(userId: String, yearMonth: YearMonth = YearMonth.now()) {
+        // A different account than the one on screen: throw the old data away instead of showing
+        // the previous user's name, streak, targets and meals until the first refresh lands. This
+        // ViewModel is owned by the Activity, so signing out does not dispose it.
+        if (loadedForUser != null && loadedForUser != userId) {
+            todayLogsJob?.cancel()
+            goalInsightJob?.cancel()
+            _uiState.value = DashboardUiState()
+        }
+        loadedForUser = userId
+
         _uiState.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             try {

@@ -58,6 +58,16 @@ class FoodRepository(
      */
     private val pushMutex = Mutex()
 
+    /**
+     * The same protection for the food library.
+     *
+     * `refreshPresets` and `savePreset` both push, and a save while a refresh is in flight had
+     * them both read the same unsynced row and both insert it — the duplicate-entry bug [pushMutex]
+     * fixes for the diary, but for custom foods. Kept separate so a slow preset upload cannot hold
+     * up a diary entry.
+     */
+    private val presetPushMutex = Mutex()
+
     // ---------------------------------------------------------------- reads (always local)
 
     fun observeLogsForDate(userId: String, date: LocalDate): Flow<List<RemoteFoodLog>> =
@@ -78,7 +88,9 @@ class FoodRepository(
         val start = yearMonth.atDay(1)
         val end = yearMonth.atEndOfMonth()
         refresh(userId, start, end)
-        return foodLogDao.getFrom(userId, start.toString()).map { it.toRemote() }
+        // Bounded at both ends: reading open-ended from the first of the month returned every
+        // later day too, so a caller asking for January was handed January onwards.
+        return foodLogDao.getBetween(userId, start.toString(), end.toString()).map { it.toRemote() }
     }
 
     // ---------------------------------------------------------------- writes (local first)
@@ -146,6 +158,23 @@ class FoodRepository(
     }
 
     /**
+     * Empties the outbound queue: diary entries and custom foods written while offline, plus any
+     * deletes that never reached the server.
+     *
+     * Called at app start so the queue drains as soon as there is a connection, rather than
+     * waiting for the user to happen to open a screen that syncs. It does not pull anything —
+     * screens do that when they load — and every step is allowed to fail, because being offline
+     * is the normal case for the rows it is trying to send.
+     */
+    suspend fun flushOutbox() {
+        if (!connectivity.isOnline()) return
+        runCatching { pushUnsynced() }
+        runCatching { flushPendingDeletes() }
+        runCatching { pushUnsyncedPresets() }
+        runCatching { flushPendingPresetDeletes() }
+    }
+
+    /**
      * Changes the servings and/or the meal of an entry already in the diary.
      *
      * Macros are rescaled from the stored total rather than re-fetched, so this works offline and
@@ -202,12 +231,14 @@ class FoodRepository(
     // ---------------------------------------------------------------- sync
 
     /**
-     * Pulls server state for a specific range into Room, after flushing anything queued locally.
+     * Pulls server state for a date range into Room, after flushing anything queued locally.
      * Safe to call often; failures leave the cache untouched.
-     */
-    /**
-     * Pulls server state for a specific range into Room, after flushing anything queued locally.
-     * Safe to call often; failures leave the cache untouched.
+     *
+     * [end] defaults to today. The range is closed at both ends on purpose: the local clear-out
+     * below and the re-insert that follows it must cover exactly the same days. When the clear-out
+     * was open-ended, refreshing a past month deleted every synced entry from that month up to
+     * today and put only that month back — so paging the Goal calendar backwards emptied the
+     * dashboard.
      */
     suspend fun refresh(userId: String, start: LocalDate, end: LocalDate? = null): SyncResult {
         if (!connectivity.isOnline()) return SyncResult.OFFLINE
@@ -215,6 +246,8 @@ class FoodRepository(
         val justDeleted = flushPendingDeletes()
 
         val fetchStart = start.toString()
+        val fetchEnd = (end ?: LocalDate.now()).toString()
+
         val remote = try {
             supabaseRepository.fetchFoodLogsRange(userId, fetchStart)
         } catch (e: Exception) {
@@ -224,42 +257,41 @@ class FoodRepository(
             return if (connectivity.isOnline()) SyncResult.FAILED else SyncResult.OFFLINE
         }
 
-        // If we have an end date, filter the remote results to only include what we asked for.
-        // Supabase fetchFoodLogsRange uses gte(createdAt), so it might return more than we need.
-        val filteredByDate = if (end != null) {
-            val endStr = end.toString()
-            remote.filter { it.createdAt.take(10) <= endStr }
-        } else {
-            remote
-        }
+        // Supabase fetchFoodLogsRange filters on gte(createdAt) only, so trim the top end here to
+        // the range we actually asked for.
+        val filteredByDate = remote.filter { it.createdAt.take(10) <= fetchEnd }
 
-        foodLogDao.clearSyncedFrom(userId, fetchStart)
-        
+        // Read the rows we are about to replace BEFORE clearing them. Quantity and the nutrition
+        // breakdown live only on the device, and this map is the only thing that carries them
+        // across a sync — reading it after the delete left it empty, which silently reset every
+        // synced entry to one serving with no detail.
+        val byRemoteId = foodLogDao.getBetween(userId, fetchStart, fetchEnd)
+            .mapNotNull { entry -> entry.remoteId?.let { it to entry } }
+            .toMap()
+
+        foodLogDao.clearSyncedBetween(userId, fetchStart, fetchEnd)
+
         val pendingDeletes = foodLogDao.getPendingDeletes()
         val pendingDeleteIds = (pendingDeletes.mapNotNull { it.remoteId } + justDeleted).toSet()
-        
-        // Filter out items that are currently pending delete locally, 
+
+        // Filter out items that are currently pending delete locally,
         // to prevent them from being resurrected by the server copy.
         val filteredRemote = filteredByDate.filter { it.id !in pendingDeleteIds }
-        
-        // If a pending delete ID is NO LONGER in the server response AND it falls within the 
+
+        // If a pending delete ID is NO LONGER in the server response AND it falls within the
         // range we just fetched, it means the deletion has succeeded on the server.
         val remoteIdsFromServer = filteredByDate.mapNotNull { it.id }.toSet()
-        val endStr = end?.toString() ?: "9999-12-31"
-        
+
         pendingDeletes.forEach { localEntry ->
             val rId = localEntry.remoteId
             val date = localEntry.logDate
-            if (rId != null && rId !in remoteIdsFromServer && date >= fetchStart && date <= endStr) {
+            if (rId != null && rId !in remoteIdsFromServer && date >= fetchStart && date <= fetchEnd) {
                 foodLogDao.deleteByLocalId(localEntry.localId)
             }
         }
 
         // Match on remoteId so the local row keeps its id — and its quantity and nutrition
         // detail, which the server does not store and would otherwise be wiped on every sync.
-        val existingEntries = foodLogDao.getFrom(userId, fetchStart)
-        val byRemoteId = existingEntries.mapNotNull { e -> e.remoteId?.let { it to e } }.toMap()
-
         val entities = filteredRemote.map { remoteLog ->
             val existing = remoteLog.id?.let { byRemoteId[it] }
             remoteLog.toEntity(
@@ -492,18 +524,31 @@ class FoodRepository(
         return SyncResult.SUCCESS
     }
 
-    private suspend fun pushUnsyncedPresets() {
+    private suspend fun pushUnsyncedPresets() = presetPushMutex.withLock {
         val pending = try {
             foodPresetDao.getUnsynced()
         } catch (e: Exception) {
-            return
+            return@withLock
         }
         for (entry in pending) {
-            if (entry.remoteId == null) {
-                val stored = supabaseRepository.insertFoodPreset(entry.toRemote().copy(id = null))
-                if (stored != null) foodPresetDao.markSynced(entry.localId, stored.id)
-            } else if (supabaseRepository.updateFoodPreset(entry.toRemote())) {
-                foodPresetDao.markSynced(entry.localId, entry.remoteId)
+            // Re-read inside the loop: a push that ran while this one was waiting on the mutex
+            // may already have uploaded this row, and inserting it again is how duplicate custom
+            // foods appeared on the server.
+            val current = foodPresetDao.getByLocalId(entry.localId) ?: continue
+            if (current.isSynced) continue
+
+            if (current.remoteId == null) {
+                val stored = supabaseRepository.insertFoodPreset(current.toRemote().copy(id = null))
+                if (stored != null) {
+                    foodPresetDao.markSynced(current.localId, stored.id)
+                } else {
+                    // The insert failed. Stop rather than working through the rest — if the server
+                    // is rejecting one row it will reject the next, and retrying the whole queue
+                    // is what turns a half-succeeded write into duplicates.
+                    break
+                }
+            } else if (supabaseRepository.updateFoodPreset(current.toRemote())) {
+                foodPresetDao.markSynced(current.localId, current.remoteId)
             }
         }
     }
@@ -525,5 +570,22 @@ class FoodRepository(
             }
         }
         return allCleared
+    }
+
+    // ---------------------------------------------------------------- account removal
+
+    /**
+     * Erases every diary entry and custom food belonging to [userId], locally and on the server.
+     *
+     * Deleting an account used to leave all of it behind on both. The server calls go first, and
+     * each is allowed to fail: a device with no connection must still be able to clear its own
+     * copy rather than refusing to delete the account at all. The built-in dishes are shared and
+     * carry a null owner, so they are untouched.
+     */
+    suspend fun deleteAllDataForUser(userId: String) {
+        runCatching { supabaseRepository.deleteFoodLogsForUser(userId) }
+        runCatching { supabaseRepository.deleteFoodPresetsForUser(userId) }
+        foodLogDao.deleteAllForUser(userId)
+        foodPresetDao.deleteAllForUser(userId)
     }
 }

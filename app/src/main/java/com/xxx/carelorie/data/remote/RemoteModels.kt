@@ -23,19 +23,36 @@ data class RemoteFoodLog(
      */
     @Transient val localId: String = "",
 
-    // Device-only, for the same reason as localId: food_logs has no columns for them. They let
-    // the diary show servings and a nutrition breakdown without a database migration.
-    @Transient val quantity: Float = 1f,
-    @Transient val brand: String? = null,
-    @Transient val servingDescription: String? = null,
-    @Transient val fiberGrams: Float? = null,
-    @Transient val sugarGrams: Float? = null,
-    @Transient val saturatedFatGrams: Float? = null,
-    @Transient val sodiumMilligrams: Float? = null,
-    @Transient val nutritionSource: String? = null
+    // Servings and the nutrition breakdown.
+    //
+    // These used to be @Transient because food_logs had no columns for them, which meant they
+    // only ever existed on the phone that logged the entry: a second device got the diary back
+    // with every row reading one serving and no breakdown. 002_sync_meals_and_nutrition.sql adds
+    // the columns; this build requires it to have been run.
+    //
+    // Nullable because rows written before those columns existed come back as null, and a
+    // non-null Float with a default would fail to decode on an explicit null rather than falling
+    // back to it.
+    val quantity: Float? = null,
+    val brand: String? = null,
+    val servingDescription: String? = null,
+    val fiberGrams: Float? = null,
+    val sugarGrams: Float? = null,
+    val saturatedFatGrams: Float? = null,
+    val sodiumMilligrams: Float? = null,
+    val nutritionSource: String? = null
 ) {
     val hasNutritionDetail: Boolean
         get() = listOfNotNull(fiberGrams, sugarGrams, saturatedFatGrams, sodiumMilligrams).isNotEmpty()
+
+    /**
+     * Servings, as a number the UI can just use.
+     *
+     * [quantity] is null on entries written before `food_logs` had the column. One serving is what
+     * the app displayed for those anyway, so that is what they read as — the rule lives here
+     * rather than as a `?: 1f` at each of the places that needs it.
+     */
+    val servings: Float get() = quantity ?: 1f
 }
 
 @Serializable
@@ -95,6 +112,36 @@ data class RemoteUserProfile(
     val proteinLimit: Float = 120f,
     val carbsLimit: Float = 200f,
     val fatLimit: Float = 65f
+)
+
+/**
+ * A saved meal on the server.
+ *
+ * Keyed by the device-generated [localId] rather than a serial, so pushing one is a single upsert
+ * and the same meal never lands twice. Items live in [RemoteMealPresetItem] and are replaced
+ * wholesale, matching how the local DAO treats them — a meal owns its foods and they are never
+ * edited alone.
+ */
+@Serializable
+data class RemoteMealPreset(
+    val localId: String,
+    val ownerUserId: String,
+    val name: String = "",
+    val mealType: String = "",
+    val createdAt: String = ""
+)
+
+@Serializable
+data class RemoteMealPresetItem(
+    val localId: String,
+    val mealPresetId: String,
+    val foodName: String = "",
+    val calories: Int = 0,
+    val protein: Float = 0f,
+    val carbs: Float = 0f,
+    val fat: Float = 0f,
+    val quantity: Float = 1f,
+    val sourcePresetId: String? = null
 )
 
 @Serializable

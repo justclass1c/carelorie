@@ -96,9 +96,15 @@ fun FoodLogEntity.toRemote(): RemoteFoodLog = RemoteFoodLog(
 )
 
 /**
- * @param preserve the local row this remote entry replaces, if we already had one. Quantity and
- * nutrition detail live only on the device, so they are carried over rather than reset to
- * defaults every time a sync re-inserts the server's copy.
+ * @param preserve the local row this remote entry replaces, if we already had one.
+ *
+ * Servings and the nutrition breakdown are now columns on `food_logs`, so the server's copy is
+ * preferred. [preserve] is the fallback for rows that reached Supabase before those columns
+ * existed and still come back null — on the device that logged them the values are right there,
+ * and there is no reason to drop them just because the server has not caught up.
+ *
+ * [sourcePresetId] has no server column and stays device-only: it points at a row in this phone's
+ * food library, so it would be meaningless on another device anyway.
  */
 fun RemoteFoodLog.toEntity(
     localId: String = UUID.randomUUID().toString(),
@@ -116,15 +122,15 @@ fun RemoteFoodLog.toEntity(
         protein = protein,
         carbs = carbs,
         fat = fat,
-        quantity = preserve?.quantity ?: 1f,
+        quantity = quantity ?: preserve?.quantity ?: 1f,
         sourcePresetId = preserve?.sourcePresetId,
-        brand = preserve?.brand,
-        servingDescription = preserve?.servingDescription,
-        fiberGrams = preserve?.fiberGrams,
-        sugarGrams = preserve?.sugarGrams,
-        saturatedFatGrams = preserve?.saturatedFatGrams,
-        sodiumMilligrams = preserve?.sodiumMilligrams,
-        nutritionSource = preserve?.nutritionSource,
+        brand = brand ?: preserve?.brand,
+        servingDescription = servingDescription ?: preserve?.servingDescription,
+        fiberGrams = fiberGrams ?: preserve?.fiberGrams,
+        sugarGrams = sugarGrams ?: preserve?.sugarGrams,
+        saturatedFatGrams = saturatedFatGrams ?: preserve?.saturatedFatGrams,
+        sodiumMilligrams = sodiumMilligrams ?: preserve?.sodiumMilligrams,
+        nutritionSource = nutritionSource ?: preserve?.nutritionSource,
         loggedAt = timestamp,
         logDate = timestamp.take(10),
         isSynced = isSynced

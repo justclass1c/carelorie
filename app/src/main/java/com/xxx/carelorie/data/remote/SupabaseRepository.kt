@@ -126,6 +126,86 @@ class SupabaseRepository {
         }
     }
 
+    // --- Saved meals ---
+
+    /**
+     * Pushes a saved meal and its foods.
+     *
+     * The meal goes first so the items' foreign key has something to point at, and the old items
+     * are cleared before the new ones land — a rename that drops a food has to remove it, not just
+     * fail to mention it. Returns false on any failure so the row stays queued rather than being
+     * marked synced when it is not.
+     */
+    suspend fun upsertMealPreset(
+        meal: RemoteMealPreset,
+        items: List<RemoteMealPresetItem>
+    ): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["meal_presets"].upsert(meal) { onConflict = "localId" }
+            supabase.postgrest["meal_preset_items"].delete {
+                filter { eq("mealPresetId", meal.localId) }
+            }
+            if (items.isNotEmpty()) {
+                supabase.postgrest["meal_preset_items"].upsert(items) { onConflict = "localId" }
+            }
+            true
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error upserting meal preset: ${e.description} (Code: ${e.code})", e)
+            false
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error upserting meal preset", e)
+            false
+        }
+    }
+
+    /** The items go with the meal: `meal_preset_items` cascades on delete. */
+    suspend fun deleteMealPreset(localId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["meal_presets"].delete {
+                filter { eq("localId", localId) }
+            }
+            true
+        } catch (e: PostgrestRestException) {
+            Log.e("SupabaseRepository", "Postgrest error deleting meal preset: ${e.description} (Code: ${e.code})", e)
+            false
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting meal preset", e)
+            false
+        }
+    }
+
+    suspend fun fetchMealPresets(userId: String): List<RemoteMealPreset> = withContext(Dispatchers.IO) {
+        supabase.postgrest["meal_presets"]
+            .select { filter { eq("ownerUserId", userId) } }
+            .decodeList<RemoteMealPreset>()
+    }
+
+    /**
+     * The foods for [mealIds] in one request.
+     *
+     * Empty in, empty out — an `isIn` on an empty list is a request that can only return nothing.
+     */
+    suspend fun fetchMealPresetItems(mealIds: List<String>): List<RemoteMealPresetItem> =
+        withContext(Dispatchers.IO) {
+            if (mealIds.isEmpty()) return@withContext emptyList()
+            supabase.postgrest["meal_preset_items"]
+                .select { filter { isIn("mealPresetId", mealIds) } }
+                .decodeList<RemoteMealPresetItem>()
+        }
+
+    /** Every saved meal belonging to a user. Part of deleting an account. */
+    suspend fun deleteMealPresetsForUser(userId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["meal_presets"].delete {
+                filter { eq("ownerUserId", userId) }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting meal presets for user", e)
+            false
+        }
+    }
+
     // --- User & Profile Sync ---
 
     suspend fun insertUser(user: RemoteUser): RemoteUser? = withContext(Dispatchers.IO) {
@@ -144,12 +224,20 @@ class SupabaseRepository {
         }
     }
 
+    /**
+     * Looks an account up by email, ignoring case.
+     *
+     * `eq` is case-sensitive in Postgres, so an account registered as `Foo@Bar.com` was invisible
+     * to someone typing `foo@bar.com` on another device. `ilike` matches either way; the pattern
+     * is escaped first because `%` and `_` are wildcards to it and underscores are ordinary
+     * characters in an email address.
+     */
     suspend fun fetchUserByEmail(email: String): RemoteUser? = withContext(Dispatchers.IO) {
         try {
             supabase.postgrest["users"]
                 .select {
                     filter {
-                        eq("email", email)
+                        ilike("email", escapeLikePattern(email))
                     }
                 }
                 .decodeSingleOrNull<RemoteUser>()
@@ -195,6 +283,42 @@ class SupabaseRepository {
             false
         }
     }
+
+    /** Removes every diary entry for a user. Part of deleting an account. */
+    suspend fun deleteFoodLogsForUser(userId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["food_logs"].delete {
+                filter { eq("userId", userId) }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting food logs for user", e)
+            false
+        }
+    }
+
+    /** Removes every custom food a user created. Built-ins carry a null userId and are untouched. */
+    suspend fun deleteFoodPresetsForUser(userId: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            supabase.postgrest["food_presets"].delete {
+                filter { eq("userId", userId) }
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("SupabaseRepository", "Error deleting food presets for user", e)
+            false
+        }
+    }
+
+    /**
+     * Escapes the LIKE wildcards in a literal value so `ilike` matches it exactly.
+     *
+     * Backslash first, or it would escape the escapes added after it.
+     */
+    private fun escapeLikePattern(value: String): String = value
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
 
     suspend fun fetchProfile(userId: String): RemoteUserProfile? = withContext(Dispatchers.IO) {
         try {

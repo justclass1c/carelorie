@@ -59,6 +59,11 @@ class SavedMealsViewModel(
     }
 
     private fun start(userId: String) {
+        // The pull runs on every visit, not just the first: it is what brings a meal saved on
+        // another device down to this one. The Flow below is unaffected either way — it reads
+        // Room, so the list is on screen before the network answers and updates when it lands.
+        viewModelScope.launch { mealPresetRepository.refresh(userId) }
+
         if (_uiState.value.userId == userId && mealsJob != null) return
         _uiState.update { it.copy(userId = userId) }
         mealsJob?.cancel()

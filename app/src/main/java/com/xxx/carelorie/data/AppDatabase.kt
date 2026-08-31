@@ -21,7 +21,7 @@ import com.xxx.carelorie.data.local.FoodPresetEntity
         MealPresetEntity::class,
         MealPresetItemEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -122,6 +122,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * 14 to 15: sync bookkeeping on `meal_presets`.
+         *
+         * Saved meals were device-only, so the table had no need to record what had reached the
+         * server. Now that they sync, they need the same two flags the diary and the food library
+         * carry. Existing rows default to unsynced, which is exactly right: they have never been
+         * uploaded, and marking them so is what gets them pushed on the next refresh.
+         */
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE meal_presets ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL(
+                    "ALTER TABLE meal_presets ADD COLUMN isPendingDelete INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -129,7 +148,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "carelorie_database"
                 )
-                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                     .build()
                 INSTANCE = instance
                 instance
