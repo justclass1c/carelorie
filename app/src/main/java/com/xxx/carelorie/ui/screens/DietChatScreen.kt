@@ -131,7 +131,7 @@ fun DietChatScreen(navController: NavController, viewModel: DietChatViewModel) {
                         modifier = Modifier.weight(1f),
                         placeholder = { Text("Ask for diet advice...") },
                         maxLines = 3,
-                        shape = RoundedCornerShape(24.dp),
+                        shape = RoundedCornerShape(28.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent

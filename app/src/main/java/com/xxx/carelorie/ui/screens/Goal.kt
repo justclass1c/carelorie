@@ -44,6 +44,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.xxx.carelorie.ui.components.dashboard.CarelorieCalendar
+import com.xxx.carelorie.ui.components.LargeTitle
 import com.xxx.carelorie.ui.components.dashboard.StreakBar
 import com.xxx.carelorie.ui.components.dashboard.WeightGraph
 import com.xxx.carelorie.ui.components.dashboard.WeightUpdateDialog
@@ -108,10 +109,15 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(16.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            LargeTitle(
+                title = "Goal",
+                modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
+            )
+
             if (useTwoColumns) {
                 // Wide layout: calendar and weight graph side by side
                 StreakBar(streakCount = uiState.currentStreak)
@@ -232,7 +238,7 @@ private fun AIInsightBox(
     onRefresh: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),

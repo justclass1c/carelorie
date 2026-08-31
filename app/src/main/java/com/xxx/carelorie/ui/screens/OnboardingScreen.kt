@@ -270,7 +270,7 @@ private fun ChoiceCard(
 
     Card(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         border = border,
         colors = CardDefaults.cardColors(
             containerColor = if (selected) {
@@ -446,7 +446,7 @@ private fun SummaryBody(kind: OnboardingStep.SummaryKind, uiState: OnboardingUiS
 @Composable
 private fun BigNumberCard(value: String, unit: String, caption: String) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -496,7 +496,7 @@ private fun MacroPill(
 ) {
     Column(
         modifier = modifier
-            .background(color.copy(alpha = 0.12f), RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
             .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -508,9 +508,8 @@ private fun MacroPill(
 @Composable
 private fun SummaryCard(heading: String, body: String) {
     Card(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(Modifier.padding(16.dp)) {

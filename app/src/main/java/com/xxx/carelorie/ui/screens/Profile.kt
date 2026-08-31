@@ -32,6 +32,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.xxx.carelorie.Routes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import com.xxx.carelorie.ui.components.LargeTitle
 import com.xxx.carelorie.data.ThemeManager
 import com.xxx.carelorie.ui.layout.ContentWidth
 import com.xxx.carelorie.ui.layout.constrainedWidth
@@ -89,6 +91,10 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
             navController.navigate(Routes.LOGIN) {
                 popUpTo(0)
             }
+            // Consume it. The ViewModel belongs to the Activity, so an unconsumed flag survived
+            // the trip through the login screen and bounced the next session straight back out
+            // of the profile tab.
+            viewModel.onEvent(ProfileUiEvent.LogoutHandled)
         }
     }
 
@@ -114,7 +120,7 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                 .constrainedWidth(if (twoColumnSections) ContentWidth.Reading else ContentWidth.Form)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(24.dp)
+                .padding(horizontal = 20.dp, vertical = 12.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
@@ -129,29 +135,35 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Profile",
-                    style = MaterialTheme.typography.headlineSmall
-                )
-
-                IconButton(onClick = { viewModel.onEvent(ProfileUiEvent.ToggleEditMode) }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Profile")
+            LargeTitle(
+                title = "Profile",
+                trailing = {
+                    // A tinted circle rather than a bare glyph: the edit affordance was the same
+                    // weight as the decorative icons elsewhere on this screen.
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        modifier = Modifier.size(38.dp)
+                    ) {
+                        IconButton(onClick = { viewModel.onEvent(ProfileUiEvent.ToggleEditMode) }) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit Profile",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                 }
-            }
+            )
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(16.dp))
 
             Card(
-                shape = RoundedCornerShape(4.dp),
+                shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                elevation = CardDefaults.cardElevation(2.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
                     Row(
@@ -458,7 +470,7 @@ private fun StatCell(label: String, value: Int, modifier: Modifier = Modifier) {
         modifier = modifier
             .background(
                 MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                RoundedCornerShape(8.dp)
+                RoundedCornerShape(12.dp)
             )
             .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -484,7 +496,7 @@ private fun SetUpPlanCard(progress: Float, onStart: () -> Unit) {
     val started = progress > 0f
 
     Card(
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
         modifier = Modifier.fillMaxWidth()
     ) {

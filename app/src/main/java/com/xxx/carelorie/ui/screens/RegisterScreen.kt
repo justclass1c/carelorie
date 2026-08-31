@@ -71,7 +71,7 @@ fun RegisterScreen(
             value = uiState.email,
             onValueChange = { viewModel.onEvent(AuthUiEvent.EmailChanged(it)) },
             label = { Text("Email") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
@@ -82,7 +82,7 @@ fun RegisterScreen(
             value = uiState.password,
             onValueChange = { viewModel.onEvent(AuthUiEvent.PasswordChanged(it)) },
             label = { Text("Password") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
             visualTransformation = if (uiState.isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 val icon = if (uiState.isPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
@@ -100,7 +100,7 @@ fun RegisterScreen(
             value = uiState.confirmPassword,
             onValueChange = { viewModel.onEvent(AuthUiEvent.ConfirmPasswordChanged(it)) },
             label = { Text("Confirm Password") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
             visualTransformation = if (uiState.isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 val icon = if (uiState.isConfirmPasswordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff
@@ -148,7 +148,7 @@ fun RegisterScreen(
             onClick = {
                 viewModel.onEvent(AuthUiEvent.RegisterClicked)
             },
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             modifier = Modifier.fillMaxWidth(),
             enabled = !uiState.isLoading
         ) {

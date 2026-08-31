@@ -63,9 +63,7 @@ fun FoodSearchScreen(
     var mealMenuOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(userId, mealType, logDate) {
-        viewModel.onEvent(FoodSearchEvent.MealTypeChanged(mealType))
-        viewModel.onEvent(FoodSearchEvent.LogDateChanged(logDate))
-        viewModel.onEvent(FoodSearchEvent.LoadPresets(userId))
+        viewModel.onEvent(FoodSearchEvent.Start(userId, mealType, logDate))
     }
 
     LaunchedEffect(uiState.message) {
@@ -363,7 +361,7 @@ private fun SelectionPane(
                 items(uiState.selectedList, key = { it.selectionId }) { candidate ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant
                         )
@@ -417,7 +415,7 @@ private fun SelectableFoodRow(
     val preset = candidate.preset
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) {
                 MaterialTheme.colorScheme.primaryContainer

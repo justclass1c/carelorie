@@ -78,7 +78,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
             value = uiState.email,
             onValueChange = { viewModel.onEvent(AuthUiEvent.EmailChanged(it)) },
             label = { Text("Email") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
@@ -89,7 +89,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
             value = uiState.password,
             onValueChange = { viewModel.onEvent(AuthUiEvent.PasswordChanged(it)) },
             label = { Text("Password") },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(14.dp),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = MaterialTheme.colorScheme.primary
             ),
@@ -137,7 +137,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
         ) {
             Button(
                 onClick = { navController.navigate(Routes.REGISTER) },
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(24.dp),
                 contentPadding = PaddingValues(vertical = 12.dp, horizontal = 36.dp),
             ) {
                 Text(text = "Register")
@@ -149,7 +149,7 @@ fun LoginScreen(onLoginSuccess: (String) -> Unit, navController: NavController, 
                 onClick = {
                     viewModel.onEvent(AuthUiEvent.LoginClicked)
                 },
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(24.dp),
                 contentPadding = PaddingValues(vertical = 12.dp, horizontal = 36.dp),
                 enabled = !uiState.isLoading
             ) {

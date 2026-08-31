@@ -2,9 +2,12 @@ package com.xxx.carelorie.ui.components.dashboard
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.data.DailyMacroIntake
 import com.xxx.carelorie.data.NutritionTargets
 import java.time.LocalDate
@@ -72,10 +76,14 @@ fun WeeklyMacroChart(
 
 @Composable
 fun DayBarColumn(intake: DailyMacroIntake, isToday: Boolean, chartMax: Float) {
-    val proteinColor = Color(0xFFE91E63) // Pink
-    val carbsColor = Color(0xFF2196F3)   // Blue
-    val fatColor = Color(0xFF4CAF50)     // Green
-    val borderColor = MaterialTheme.colorScheme.outline
+    // From the shared key, not repeated here. These four were duplicated in this file while
+    // MacroColors claimed to be the single source, so the chart and the legend beside it could
+    // drift apart — and neither adapted to dark mode.
+    val proteinColor = MacroColors.Protein
+    val carbsColor = MacroColors.Carbs
+    val fatColor = MacroColors.Fat
+    val todayColor = MacroColors.Today
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -86,7 +94,10 @@ fun DayBarColumn(intake: DailyMacroIntake, isToday: Boolean, chartMax: Float) {
             modifier = Modifier
                 .width(24.dp)
                 .height(140.dp)
-                .border(BorderStroke(1.dp, borderColor))
+                // A filled track instead of an outlined box: the bar now reads as filling
+                // something rather than floating inside a wireframe.
+                .clip(RoundedCornerShape(16.dp))
+                .background(trackColor)
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val scale = size.height / chartMax
@@ -131,8 +142,11 @@ fun DayBarColumn(intake: DailyMacroIntake, isToday: Boolean, chartMax: Float) {
             modifier = Modifier
                 .size(28.dp)
                 .then(
-                    if (isToday) Modifier.border(1.dp, Color(0xFF2196F3), CircleShape) 
-                    else Modifier
+                    if (isToday) {
+                        Modifier.background(todayColor.copy(alpha = 0.14f), CircleShape)
+                    } else {
+                        Modifier
+                    }
                 )
         ) {
             Text(
@@ -141,7 +155,7 @@ fun DayBarColumn(intake: DailyMacroIntake, isToday: Boolean, chartMax: Float) {
                     fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 16.sp
                 ),
-                color = if (isToday) Color(0xFF2196F3) else MaterialTheme.colorScheme.onSurface
+                color = if (isToday) todayColor else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
