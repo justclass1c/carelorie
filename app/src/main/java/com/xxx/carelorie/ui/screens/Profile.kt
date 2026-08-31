@@ -298,7 +298,8 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                         ) {
                             OutlinedButton(
                                 onClick = { showLogoutDialog = true },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
                             ) {
                                 Text("Logout")
                             }
@@ -711,7 +712,11 @@ fun RecoveryKeySection(hasKey: Boolean, onRegenerate: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(8.dp))
-        OutlinedButton(onClick = onRegenerate, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(
+            onClick = onRegenerate,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
+        ) {
             Text("Reset recovery key")
         }
     }

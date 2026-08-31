@@ -97,7 +97,7 @@ private fun NavLabel(text: String) {
 val entries = listOf(
     Screens(Routes.DASHBOARD, "Home", Icons.Filled.Home, Icons.Outlined.Home),
     Screens(Routes.FOOD_LOG, "Diary", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook),
-    Screens(Routes.FOOD_QUERY, "Foods", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
+    Screens(Routes.FOOD_QUERY, "Presets", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
     Screens(Routes.GOAL, "Goal", Icons.Filled.FitnessCenter, Icons.Outlined.FitnessCenter),
     Screens(Routes.PROFILE, "Profile", Icons.Filled.Person, Icons.Outlined.Person)
 )

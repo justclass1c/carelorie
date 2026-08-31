@@ -65,7 +65,6 @@ fun MacroCard(macro: String, value: Float, maxValue: Float, modifier: Modifier =
         modifier = modifier.aspectRatio(1f),
         shape = MaterialTheme.shapes.medium,
         contentPadding = PaddingValues(6.dp),
-        // The caller already sized this: weight(1f) across the row, then a 1:1 ratio.
         fillWidth = false
     ) {
         Column(
@@ -73,7 +72,6 @@ fun MacroCard(macro: String, value: Float, maxValue: Float, modifier: Modifier =
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // A small colour key, so the tile is identifiable before the label is read.
             Box(
                 modifier = Modifier
                     .size(width = 18.dp, height = 3.dp)
@@ -90,6 +88,7 @@ fun MacroCard(macro: String, value: Float, maxValue: Float, modifier: Modifier =
             Text(
                 text = formatNumber(value),
                 style = MaterialTheme.typography.titleLarge.copy(
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = (-0.4).sp
                 ),

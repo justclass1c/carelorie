@@ -37,6 +37,57 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
 
         /**
+         * The AI advice and onboarding answers on `user_profiles`, shared by the migrations that
+         * introduce them. Format is the ALTER-ready `column type` form.
+         */
+        private val userProfileColumnDdls = listOf(
+            "weightAdvice TEXT",
+            "everWeighedOver95 TEXT",
+            "weightTrend TEXT",
+            "bodyFatBand TEXT",
+            "exerciseFrequency TEXT",
+            "activityLevel TEXT",
+            "cardioExperience TEXT",
+            "goal TEXT",
+            "targetWeight REAL",
+            "dietType TEXT",
+            "trainingType TEXT",
+            "calorieDistribution TEXT",
+            "proteinPreference TEXT",
+            "estimatedTdee INTEGER",
+            "onboardingCompletedAt TEXT"
+        )
+
+        private fun columnExists(
+            db: SupportSQLiteDatabase,
+            table: String,
+            column: String
+        ): Boolean {
+            db.query("PRAGMA table_info(`$table`)").use { cursor ->
+                val nameColumn = cursor.getColumnIndex("name")
+                while (cursor.moveToNext()) {
+                    if (cursor.getString(nameColumn) == column) return true
+                }
+            }
+            return false
+        }
+
+        /**
+         * ALTER that tolerates a column already being there. The two branch histories shipped
+         * overlapping schemas under the same version numbers, so a database can arrive at a
+         * migration already carrying pieces of what it adds.
+         */
+        private fun addColumnIfMissing(
+            db: SupportSQLiteDatabase,
+            table: String,
+            ddl: String
+        ) {
+            if (!columnExists(db, table, ddl.substringBefore(' '))) {
+                db.execSQL("ALTER TABLE `$table` ADD COLUMN $ddl")
+            }
+        }
+
+        /**
          * 12 to 13: the onboarding columns, the AI weight advice, account creation dates, and the
          * saved-meal tables.
          *
@@ -49,29 +100,12 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRATION_12_13 = object : Migration(12, 13) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // --- user_profiles: AI advice + the onboarding answers -------------------
-                val profileColumns = listOf(
-                    "weightAdvice TEXT",
-                    "everWeighedOver95 TEXT",
-                    "weightTrend TEXT",
-                    "bodyFatBand TEXT",
-                    "exerciseFrequency TEXT",
-                    "activityLevel TEXT",
-                    "cardioExperience TEXT",
-                    "goal TEXT",
-                    "targetWeight REAL",
-                    "dietType TEXT",
-                    "trainingType TEXT",
-                    "calorieDistribution TEXT",
-                    "proteinPreference TEXT",
-                    "estimatedTdee INTEGER",
-                    "onboardingCompletedAt TEXT"
-                )
-                for (column in profileColumns) {
-                    db.execSQL("ALTER TABLE user_profiles ADD COLUMN $column")
+                for (ddl in userProfileColumnDdls) {
+                    addColumnIfMissing(db, "user_profiles", ddl)
                 }
 
                 // --- users: "member since" ----------------------------------------------
-                db.execSQL("ALTER TABLE users ADD COLUMN createdAt TEXT")
+                addColumnIfMissing(db, "users", "createdAt TEXT")
 
                 // --- saved meals --------------------------------------------------------
                 db.execSQL(
@@ -116,28 +150,79 @@ abstract class AppDatabase : RoomDatabase() {
          */
         val MIGRATION_13_14 = object : Migration(13, 14) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    "ALTER TABLE users ADD COLUMN recoveryKey TEXT NOT NULL DEFAULT ''"
+                addColumnIfMissing(
+                    db,
+                    "users",
+                    "recoveryKey TEXT NOT NULL DEFAULT ''"
                 )
             }
         }
 
         /**
-         * 14 to 15: sync bookkeeping on `meal_presets`.
+         * 14 to 15: sync bookkeeping on `meal_presets` — plus everything master's version 14
+         * never had.
          *
-         * Saved meals were device-only, so the table had no need to record what had reached the
-         * server. Now that they sync, they need the same two flags the diary and the food library
-         * carry. Existing rows default to unsynced, which is exactly right: they have never been
-         * uploaded, and marking them so is what gets them pushed on the next refresh.
+         * Two different databases both answer "version 14". The nk branch's has the saved-meal
+         * tables from [MIGRATION_12_13] and needs only the two sync flags: saved meals were
+         * device-only, so the table had no need to record what had reached the server, and now
+         * that they sync it needs the same flags the diary and the food library carry. Master's
+         * version 14 was built under `fallbackToDestructiveMigration()` with none of the saved
+         * meals, onboarding columns, or `users.createdAt` — the merge that joined the branches
+         * kept nk's version numbering, so this migration must reconcile whichever flavor it
+         * finds. Everything is guarded: CREATE IF NOT EXISTS for what is absent, [addColumnIfMissing]
+         * for what may or may not be. Existing rows default to unsynced, which is exactly right —
+         * they have never been uploaded, and marking them so is what gets them pushed on the next
+         * refresh.
          */
         val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // --- saved meals, with the sync flags already in place on a fresh create ----
                 db.execSQL(
-                    "ALTER TABLE meal_presets ADD COLUMN isSynced INTEGER NOT NULL DEFAULT 0"
+                    """
+                    CREATE TABLE IF NOT EXISTS meal_presets (
+                        localId TEXT NOT NULL PRIMARY KEY,
+                        ownerUserId TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        mealType TEXT NOT NULL,
+                        createdAt TEXT NOT NULL,
+                        isSynced INTEGER NOT NULL DEFAULT 0,
+                        isPendingDelete INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
                 )
                 db.execSQL(
-                    "ALTER TABLE meal_presets ADD COLUMN isPendingDelete INTEGER NOT NULL DEFAULT 0"
+                    """
+                    CREATE TABLE IF NOT EXISTS meal_preset_items (
+                        localId TEXT NOT NULL PRIMARY KEY,
+                        mealPresetId TEXT NOT NULL,
+                        foodName TEXT NOT NULL,
+                        calories INTEGER NOT NULL,
+                        protein REAL NOT NULL,
+                        carbs REAL NOT NULL,
+                        fat REAL NOT NULL,
+                        quantity REAL NOT NULL,
+                        sourcePresetId TEXT
+                    )
+                    """.trimIndent()
                 )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_meal_preset_items_mealPresetId " +
+                        "ON meal_preset_items (mealPresetId)"
+                )
+
+                // --- nk's 14: the tables exist, only the flags are new ---------------------
+                addColumnIfMissing(db, "meal_presets", "isSynced INTEGER NOT NULL DEFAULT 0")
+                addColumnIfMissing(
+                    db,
+                    "meal_presets",
+                    "isPendingDelete INTEGER NOT NULL DEFAULT 0"
+                )
+
+                // --- master's 14: none of the 12-to-13 changes ever ran -------------------
+                addColumnIfMissing(db, "users", "createdAt TEXT")
+                for (ddl in userProfileColumnDdls) {
+                    addColumnIfMissing(db, "user_profiles", ddl)
+                }
             }
         }
 

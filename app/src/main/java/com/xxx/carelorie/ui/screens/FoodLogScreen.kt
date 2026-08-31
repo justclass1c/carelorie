@@ -141,10 +141,10 @@ fun FoodLogScreen(
         } else {
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .statusBarsPadding()
-                    .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .statusBarsPadding()
+                .padding(16.dp)
             ) {
                 LargeTitle(
                     title = "Diary",

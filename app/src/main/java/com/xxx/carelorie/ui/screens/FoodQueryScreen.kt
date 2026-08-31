@@ -31,7 +31,6 @@ import com.xxx.carelorie.Routes
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.xxx.carelorie.data.local.FoodPresetEntity
 import com.xxx.carelorie.data.nutrition.FoodCandidate
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.graphics.Color
 import com.xxx.carelorie.ui.components.LargeTitle
 import com.xxx.carelorie.ui.layout.ContentWidth
@@ -129,11 +128,10 @@ fun FoodQueryScreen(
                     .fillMaxHeight()
                     .constrainedWidth(ContentWidth.Reading)
                     .fillMaxWidth()
-                    .statusBarsPadding()
                     .padding(horizontal = 20.dp)
             ) {
                 LargeTitle(
-                    title = "Foods",
+                    title = "Presets",
                     subtitle = "Your library and the built-in dishes",
                     modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
                 )
