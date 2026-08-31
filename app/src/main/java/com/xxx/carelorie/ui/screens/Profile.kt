@@ -25,12 +25,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
 import com.xxx.carelorie.Routes
+import androidx.compose.foundation.background
 import com.xxx.carelorie.data.ThemeManager
 import com.xxx.carelorie.ui.layout.ContentWidth
 import com.xxx.carelorie.ui.layout.constrainedWidth
 import com.xxx.carelorie.ui.layout.isExpandedScreen
 import com.xxx.carelorie.ui.viewmodels.ProfileUiEvent
 import com.xxx.carelorie.ui.viewmodels.ProfileViewModel
+
+private val MEMBER_SINCE = java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy")
 
 @Composable
 fun Profile(navController: NavController, userId: String, viewModel: ProfileViewModel, isOnboarding: Boolean = false) {
@@ -125,7 +128,7 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Profile (ID: ${uiState.userId.take(8)}...)",
+                    text = "Profile",
                     style = MaterialTheme.typography.headlineSmall
                 )
 
@@ -143,26 +146,54 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                 elevation = CardDefaults.cardElevation(2.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center,
-                ) {
-                    Text(
-                        text = uiState.name.ifEmpty { "Username" },
-                        textAlign = TextAlign.Start,
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = uiState.name.ifEmpty { "Username" },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            uiState.stats.memberSince?.let { since ->
+                                Text(
+                                    text = "Member since ${since.format(MEMBER_SINCE)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
 
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Profile Picture",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        StatCell("Active streak", uiState.stats.activeStreak, Modifier.weight(1f))
+                        StatCell("Longest streak", uiState.stats.longestStreak, Modifier.weight(1f))
+                        StatCell("Days tracked", uiState.stats.totalTracked, Modifier.weight(1f))
+                    }
                 }
+            }
+
+            // Offered until the plan is complete. Onboarding is skippable, so this is the way
+            // back into it — and it says what finishing actually buys, rather than nagging.
+            if (!uiState.hasCompletedOnboarding) {
+                Spacer(Modifier.height(12.dp))
+                SetUpPlanCard(
+                    progress = uiState.onboardingProgress,
+                    onStart = { navController.navigate(Routes.ONBOARDING) }
+                )
             }
 
             Spacer(Modifier.height(15.dp))
@@ -300,6 +331,80 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                 TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
             }
         )
+    }
+}
+
+/** One of the three counters in the profile header. */
+@Composable
+private fun StatCell(label: String, value: Int, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                RoundedCornerShape(8.dp)
+            )
+            .padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = value.toString(),
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/** Prompt to finish onboarding, shown while the plan is incomplete. */
+@Composable
+private fun SetUpPlanCard(progress: Float, onStart: () -> Unit) {
+    val started = progress > 0f
+
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                text = if (started) "Finish setting up your plan" else "Set up your plan",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "A few questions about your body, training and goal. We use them to work " +
+                    "out your daily targets and to give the AI coach something real to work with.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+
+            if (started) {
+                Spacer(Modifier.height(12.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "${(progress * 100).toInt()}% complete",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = onStart) {
+                Text(if (started) "Continue" else "Get started")
+            }
+        }
     }
 }
 

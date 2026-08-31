@@ -64,6 +64,8 @@ sealed class FoodSearchEvent {
     data class ChangeQuantity(val candidate: FoodCandidate, val quantity: Float) : FoodSearchEvent()
     data class BarcodeScanned(val barcode: String) : FoodSearchEvent()
     data class PhotoCaptured(val imageBase64: String) : FoodSearchEvent()
+    /** The picked image could not be read — surfaced rather than silently doing nothing. */
+    data class PhotoFailed(val reason: String) : FoodSearchEvent()
     data class PresetFilterChanged(val filter: PresetFilter) : FoodSearchEvent()
     object AiSearch : FoodSearchEvent()
     data class LogSelected(val userId: String) : FoodSearchEvent()
@@ -98,6 +100,8 @@ class FoodSearchViewModel(
             is FoodSearchEvent.ChangeQuantity -> changeQuantity(event.candidate, event.quantity)
             is FoodSearchEvent.BarcodeScanned -> lookupBarcode(event.barcode)
             is FoodSearchEvent.PhotoCaptured -> analysePhoto(event.imageBase64)
+            is FoodSearchEvent.PhotoFailed ->
+                _uiState.update { it.copy(isAnalysing = false, message = event.reason) }
             is FoodSearchEvent.PresetFilterChanged -> _uiState.update {
                 // Changing the filter always returns to the local library, since the filter
                 // has no meaning over online or AI results.
@@ -309,7 +313,8 @@ class FoodSearchViewModel(
                     isAnalysing = false,
                     mode = SearchMode.PRESETS,
                     results = filterPresets(it.presets, it.query),
-                    message = "AI is not configured. Add DEEPSEEK_API_KEY to local.properties and rebuild."
+                    message = "AI is not configured. Add DEEPSEEK_API_KEY or GEMINI_API_KEY " +
+                        "to local.properties and rebuild."
                 )
             }
         }

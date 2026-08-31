@@ -4,14 +4,6 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
-@Serializable
-data class RemoteMacroIntake(
-    val userId: String,
-    val date: String, // ISO 8601 string
-    val protein: Float,
-    val carbs: Float,
-    val fat: Float
-)
 
 @Serializable
 data class RemoteFoodLog(
@@ -81,6 +73,22 @@ data class RemoteUserProfile(
     val liftingExperience: String = "",
     val weight: Float? = null,
     val weightAdvice: String? = null,
+    // Onboarding answers. Every one is nullable so a skipped setup round-trips cleanly, and so
+    // adding them here could never break an insert for a user who answered nothing.
+    val everWeighedOver95: String? = null,
+    val weightTrend: String? = null,
+    val bodyFatBand: String? = null,
+    val exerciseFrequency: String? = null,
+    val activityLevel: String? = null,
+    val cardioExperience: String? = null,
+    val goal: String? = null,
+    val targetWeight: Float? = null,
+    val dietType: String? = null,
+    val trainingType: String? = null,
+    val calorieDistribution: String? = null,
+    val proteinPreference: String? = null,
+    val estimatedTdee: Int? = null,
+    val onboardingCompletedAt: String? = null,
     val theme: String = "system",
     val calorieLimit: Int = 2000,
     val proteinLimit: Float = 120f,

@@ -11,15 +11,27 @@ import com.xxx.carelorie.data.remote.RemoteFoodLog
 import com.xxx.carelorie.data.nutrition.NutritionDetail
 import com.xxx.carelorie.data.remote.RemoteFoodPreset
 import com.xxx.carelorie.data.remote.SupabaseRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.util.UUID
 
-/** Outcome of a sync attempt, so the UI can tell "nothing new" from "no connection". */
-enum class SyncResult { SUCCESS, OFFLINE }
+/**
+ * Outcome of a sync attempt.
+ *
+ * [FAILED] exists because everything used to collapse into [OFFLINE]: a missing column, a
+ * permissions error or a decode failure all reported as "you have no connection", which is why
+ * the food log showed its offline banner while the device was on wifi.
+ */
+enum class SyncResult { SUCCESS, OFFLINE, FAILED }
 
 /**
  * Offline-first food log storage.
@@ -31,39 +43,40 @@ class FoodRepository(
     private val supabaseRepository: SupabaseRepository,
     private val foodLogDao: FoodLogDao,
     private val foodPresetDao: FoodPresetDao,
+    private val connectivity: ConnectivityChecker = AlwaysOnlineChecker(),
+    /** Outlives any screen, so a queued upload is not cancelled by navigating away. */
+    private val syncScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) {
+
+    /**
+     * Serialises every upload.
+     *
+     * Without this, two overlapping refreshes both read the same unsynced rows and both insert
+     * them — and the dashboard alone triggers two refreshes per load while the food log triggers
+     * its own. That is what was silently duplicating entries on the server: one banana logged,
+     * three bananas stored.
+     */
+    private val pushMutex = Mutex()
 
     // ---------------------------------------------------------------- reads (always local)
 
     fun observeLogsForDate(userId: String, date: LocalDate): Flow<List<RemoteFoodLog>> =
         foodLogDao.observeForDate(userId, date.toString()).map { list -> list.map { it.toRemote() } }
 
-    fun observeLogsBetween(userId: String, start: LocalDate, end: LocalDate): Flow<List<RemoteFoodLog>> =
-        foodLogDao.observeBetween(userId, start.toString(), end.toString())
-            .map { list -> list.map { it.toRemote() } }
+    /** Every day with at least one entry, across the user's whole history. */
+    suspend fun getAllLoggedDates(userId: String): Set<LocalDate> =
+        foodLogDao.getAllLoggedDates(userId)
+            .mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }
+            .toSet()
 
     fun observeLoggedDates(userId: String): Flow<Set<LocalDate>> =
         foodLogDao.observeLoggedDates(userId).map { dates ->
             dates.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.toSet()
         }
 
-    suspend fun getDailyLogs(userId: String, date: String): List<RemoteFoodLog> {
-        refresh(userId, LocalDate.parse(date), LocalDate.parse(date))
-        return foodLogDao.getFrom(userId, date)
-            .filter { it.logDate == date }
-            .map { it.toRemote() }
-    }
-
     suspend fun getMonthlyLogs(userId: String, yearMonth: YearMonth): List<RemoteFoodLog> {
         val start = yearMonth.atDay(1)
         val end = yearMonth.atEndOfMonth()
-        refresh(userId, start, end)
-        return foodLogDao.getFrom(userId, start.toString()).map { it.toRemote() }
-    }
-
-    suspend fun getWeeklyLogs(userId: String): List<RemoteFoodLog> {
-        val start = LocalDate.now().minusDays(7)
-        val end = LocalDate.now()
         refresh(userId, start, end)
         return foodLogDao.getFrom(userId, start.toString()).map { it.toRemote() }
     }
@@ -121,7 +134,15 @@ class FoodRepository(
             isSynced = false
         )
         foodLogDao.upsert(entity)
-        pushUnsynced()
+        // Queued, not awaited. This used to be a blocking round trip per food, and it pushed
+        // *every* unsynced row each time — so logging three items meant three sequential
+        // uploads of a growing list, which is the pause people saw after tapping Log.
+        requestPush()
+    }
+
+    /** Fire-and-forget upload. Safe to call as often as you like; the mutex collapses bursts. */
+    private fun requestPush() {
+        syncScope.launch { runCatching { pushUnsynced() } }
     }
 
     /**
@@ -189,6 +210,7 @@ class FoodRepository(
      * Safe to call often; failures leave the cache untouched.
      */
     suspend fun refresh(userId: String, start: LocalDate, end: LocalDate? = null): SyncResult {
+        if (!connectivity.isOnline()) return SyncResult.OFFLINE
         pushUnsynced()
         val justDeleted = flushPendingDeletes()
 
@@ -197,7 +219,9 @@ class FoodRepository(
             supabaseRepository.fetchFoodLogsRange(userId, fetchStart)
         } catch (e: Exception) {
             e.printStackTrace()
-            return SyncResult.OFFLINE
+            // Ask the platform rather than assuming. A schema error, a permissions error or a
+            // decode failure are all server-side problems and must not claim the user is offline.
+            return if (connectivity.isOnline()) SyncResult.FAILED else SyncResult.OFFLINE
         }
 
         // If we have an end date, filter the remote results to only include what we asked for.
@@ -253,19 +277,39 @@ class FoodRepository(
         return refresh(userId, start, end)
     }
 
-    private suspend fun pushUnsynced() {
+    /**
+     * Uploads everything not yet on the server.
+     *
+     * Held under [pushMutex] so concurrent callers queue instead of racing. Each row is also
+     * claimed by writing its remote id back the moment the insert returns, so a second pass that
+     * starts after this one finishes sees it as synced rather than inserting it again.
+     */
+    private suspend fun pushUnsynced() = pushMutex.withLock {
         val pending = try {
             foodLogDao.getUnsynced()
         } catch (e: Exception) {
-            return
+            return@withLock
         }
         for (entry in pending) {
-            if (entry.remoteId == null) {
-                val remote = supabaseRepository.addFoodLog(entry.toRemote().copy(id = null))
-                if (remote != null) foodLogDao.markSynced(entry.localId, remote.id)
-            } else if (supabaseRepository.updateFoodLog(entry.toRemote())) {
+            // Re-read inside the loop: an earlier iteration, or a push that ran while this one
+            // was waiting on the mutex, may already have uploaded this row.
+            val current = foodLogDao.getByLocalId(entry.localId) ?: continue
+            if (current.isSynced) continue
+
+            if (current.remoteId == null) {
+                val remote = supabaseRepository.addFoodLog(current.toRemote().copy(id = null))
+                if (remote?.id != null) {
+                    foodLogDao.markSynced(current.localId, remote.id)
+                } else {
+                    // The insert failed. Stop rather than working through the rest and
+                    // re-attempting the whole queue on the next refresh — if the server is
+                    // rejecting one row it will reject the next, and retrying in a loop is how
+                    // duplicates got created when a write half-succeeded.
+                    break
+                }
+            } else if (supabaseRepository.updateFoodLog(current.toRemote())) {
                 // Already on the server — an edit, not a new entry.
-                foodLogDao.markSynced(entry.localId, entry.remoteId)
+                foodLogDao.markSynced(current.localId, current.remoteId)
             }
         }
     }
@@ -419,6 +463,7 @@ class FoodRepository(
      * A failed request leaves the cache untouched, so a dropped connection cannot blank the list.
      */
     suspend fun refreshPresets(userId: String): SyncResult {
+        if (!connectivity.isOnline()) return SyncResult.OFFLINE
         seedBuiltInPresetsIfNeeded()
         pushUnsyncedPresets()
         flushPendingPresetDeletes()
@@ -427,7 +472,7 @@ class FoodRepository(
             supabaseRepository.fetchUserFoodPresets(userId)
         } catch (e: Exception) {
             e.printStackTrace()
-            return SyncResult.OFFLINE
+            return if (connectivity.isOnline()) SyncResult.FAILED else SyncResult.OFFLINE
         }
 
         // Preserve local ids for rows we already know about, so the UI doesn't lose its place.

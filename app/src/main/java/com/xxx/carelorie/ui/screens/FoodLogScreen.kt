@@ -59,8 +59,11 @@ fun FoodLogScreen(
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
-            snackbarHostState.showSnackbar(it)
+            // Consume before awaiting: showSnackbar suspends until the bar goes away, so
+            // leaving the screen cancels this effect and the message would stay set and
+            // replay every time you came back.
             viewModel.onEvent(FoodLogEvent.MessageConsumed)
+            snackbarHostState.showSnackbar(it)
         }
     }
 
@@ -79,7 +82,9 @@ fun FoodLogScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         if (wide) {
             // Tablet: calendar stays open beside the log instead of pushing it down.
-            Row(modifier = Modifier.fillMaxSize()) {
+            // statusBarsPadding on the Row, not on each column: the narrow branch had it and
+            // this one did not, so the tablet heading drew underneath the clock.
+            Row(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 Column(
                     modifier = Modifier
                         .weight(0.4f)

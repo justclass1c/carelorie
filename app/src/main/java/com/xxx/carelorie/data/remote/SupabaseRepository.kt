@@ -8,26 +8,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class SupabaseRepository {
-    
-    suspend fun saveDailyMacros(intake: RemoteMacroIntake) = withContext(Dispatchers.IO) {
-        try {
-            supabase.postgrest["macros"].insert(intake)
-        } catch (e: PostgrestRestException) {
-            Log.e("SupabaseRepository", "Postgrest error saving daily macros: ${e.description} (Code: ${e.code})", e)
-        } catch (e: Exception) {
-            Log.e("SupabaseRepository", "Error saving daily macros", e)
-        }
-    }
-
-    suspend fun fetchWeeklyMacros(userId: String): List<RemoteMacroIntake> = withContext(Dispatchers.IO) {
-        supabase.postgrest["macros"]
-            .select {
-                filter {
-                    eq("userId", userId)
-                }
-            }
-            .decodeList<RemoteMacroIntake>()
-    }
 
     suspend fun addFoodLog(entry: RemoteFoodLog): RemoteFoodLog? = withContext(Dispatchers.IO) {
         try {
@@ -74,25 +54,6 @@ class SupabaseRepository {
         } catch (e: Exception) {
             Log.e("SupabaseRepository", "Error deleting food log", e)
             false
-        }
-    }
-
-    suspend fun fetchFoodLogs(userId: String, date: String): List<RemoteFoodLog> = withContext(Dispatchers.IO) {
-        try {
-            supabase.postgrest["food_logs"]
-                .select {
-                    filter {
-                        eq("userId", userId)
-                        filter("createdAt", FilterOperator.ILIKE, "$date%")
-                    }
-                }
-                .decodeList<RemoteFoodLog>()
-        } catch (e: PostgrestRestException) {
-            Log.e("SupabaseRepository", "Postgrest error fetching food logs: ${e.description} (Code: ${e.code})", e)
-            emptyList()
-        } catch (e: Exception) {
-            Log.e("SupabaseRepository", "Error fetching food logs", e)
-            emptyList()
         }
     }
 

@@ -15,10 +15,7 @@ class UserRepository(
     private val sessionManager: SessionManager,
     private val supabaseRepository: SupabaseRepository
 ) {
-    fun saveSession(userId: String) = sessionManager.saveUserId(userId)
-    fun getSessionUserId(): String = sessionManager.getUserId()
     fun clearSession() = sessionManager.clearSession()
-    fun hasSession(): Boolean = getSessionUserId().isNotEmpty()
 
     /**
      * Creates an account.
@@ -33,7 +30,12 @@ class UserRepository(
      */
     suspend fun registerUser(user: User): Result<String> {
         return try {
-            val stored = user.copy(password = hashPassword(user.password))
+            val stored = user.copy(
+                password = hashPassword(user.password),
+                // Stamped here rather than defaulted on the entity, so re-inserting a user
+                // fetched from Supabase during sign-in cannot reset their join date.
+                createdAt = user.createdAt ?: LocalDate.now().toString()
+            )
             userDao.insertUser(stored)
             pushUser(stored)
             Result.success(stored.userId)
@@ -105,6 +107,20 @@ class UserRepository(
                     liftingExperience = remote.liftingExperience,
                     weight = remote.weight,
                     weightAdvice = remote.weightAdvice,
+                    everWeighedOver95 = remote.everWeighedOver95,
+                    weightTrend = remote.weightTrend,
+                    bodyFatBand = remote.bodyFatBand,
+                    exerciseFrequency = remote.exerciseFrequency,
+                    activityLevel = remote.activityLevel,
+                    cardioExperience = remote.cardioExperience,
+                    goal = remote.goal,
+                    targetWeight = remote.targetWeight,
+                    dietType = remote.dietType,
+                    trainingType = remote.trainingType,
+                    calorieDistribution = remote.calorieDistribution,
+                    proteinPreference = remote.proteinPreference,
+                    estimatedTdee = remote.estimatedTdee,
+                    onboardingCompletedAt = remote.onboardingCompletedAt,
                     theme = remote.theme,
                     calorieLimit = remote.calorieLimit,
                     proteinLimit = remote.proteinLimit,
@@ -147,6 +163,20 @@ class UserRepository(
         liftingExperience = profile.liftingExperience,
         weight = profile.weight,
         weightAdvice = profile.weightAdvice,
+        everWeighedOver95 = profile.everWeighedOver95,
+        weightTrend = profile.weightTrend,
+        bodyFatBand = profile.bodyFatBand,
+        exerciseFrequency = profile.exerciseFrequency,
+        activityLevel = profile.activityLevel,
+        cardioExperience = profile.cardioExperience,
+        goal = profile.goal,
+        targetWeight = profile.targetWeight,
+        dietType = profile.dietType,
+        trainingType = profile.trainingType,
+        calorieDistribution = profile.calorieDistribution,
+        proteinPreference = profile.proteinPreference,
+        estimatedTdee = profile.estimatedTdee,
+        onboardingCompletedAt = profile.onboardingCompletedAt,
         theme = profile.theme,
         calorieLimit = profile.calorieLimit,
         proteinLimit = profile.proteinLimit,
@@ -168,6 +198,10 @@ class UserRepository(
         supabaseRepository.deleteProfile(userId)
         supabaseRepository.deleteUser(userId)
     }
+
+    /** ISO creation date, or null for accounts that predate the column. */
+    suspend fun getAccountCreated(userId: String): String? =
+        try { userDao.getUserById(userId)?.createdAt } catch (e: Exception) { null }
 
     suspend fun getProfile(userId: String): UserProfile? {
         // Sync with remote first if possible to ensure we have latest data

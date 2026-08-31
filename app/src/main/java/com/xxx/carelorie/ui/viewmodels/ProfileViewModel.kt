@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.xxx.carelorie.data.SessionManager
 import com.xxx.carelorie.data.ThemeManager
 import com.xxx.carelorie.data.UserProfile
+import com.xxx.carelorie.data.FoodRepository
+import com.xxx.carelorie.data.TrackingStats
 import com.xxx.carelorie.data.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,7 +34,11 @@ data class ProfileUiState(
     val errorMessage: String? = null,
     val isSaveSuccess: Boolean = false,
     val isOnboarding: Boolean = false,
-    val isLoggedOut: Boolean = false
+    val isLoggedOut: Boolean = false,
+    val stats: TrackingStats = TrackingStats(),
+    /** 0f..1f. Below 1f the profile offers to finish setting the plan up. */
+    val onboardingProgress: Float = 0f,
+    val hasCompletedOnboarding: Boolean = false
 )
 
 sealed class ProfileUiEvent {
@@ -59,6 +65,7 @@ sealed class ProfileUiEvent {
 
 class ProfileViewModel(
     private val repository: UserRepository,
+    private val foodRepository: FoodRepository,
     private val sessionManager: SessionManager,
     private val themeManager: ThemeManager
 ) : ViewModel() {
@@ -123,13 +130,37 @@ class ProfileViewModel(
                         carbsLimit = formatFloat(profile.carbsLimit),
                         fatLimit = formatFloat(profile.fatLimit),
                         isLoading = false,
-                        isEditMode = if (isOnboarding) true else it.isEditMode
+                        isEditMode = if (isOnboarding) true else it.isEditMode,
+                        onboardingProgress = profile.onboardingProgress,
+                        hasCompletedOnboarding = profile.hasCompletedOnboarding
                     )
                 }
             } else {
                 _uiState.update { it.copy(isLoading = false, isEditMode = true) }
             }
+
+            loadStats(userId)
         }
+    }
+
+    /**
+     * Streaks and totals for the profile header.
+     *
+     * Separate from the profile load because it reads the whole logging history, and a slow or
+     * failed read here should never stop the profile itself from rendering.
+     */
+    private suspend fun loadStats(userId: String) {
+        val stats = try {
+            TrackingStats.from(
+                loggedDates = foodRepository.getAllLoggedDates(userId),
+                accountCreated = repository.getAccountCreated(userId)
+                    ?.let { runCatching { java.time.LocalDate.parse(it.take(10)) }.getOrNull() },
+                today = java.time.LocalDate.now()
+            )
+        } catch (e: Exception) {
+            TrackingStats()
+        }
+        _uiState.update { it.copy(stats = stats) }
     }
 
     private fun onThemeChanged(theme: String) {

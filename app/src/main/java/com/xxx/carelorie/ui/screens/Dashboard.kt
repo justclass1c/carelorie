@@ -78,8 +78,11 @@ fun Dashboard(
 
     LaunchedEffect(uiState.message) {
         uiState.message?.let {
-            snackbarHostState.showSnackbar(it)
+            // Consume before awaiting: showSnackbar suspends until the bar goes away, so
+            // leaving the screen cancels this effect and the message would stay set and
+            // replay every time you came back.
             viewModel.onEvent(DashboardEvent.MessageConsumed)
+            snackbarHostState.showSnackbar(it)
         }
     }
 
@@ -196,7 +199,11 @@ fun Dashboard(
                     },
                     onDeleteLog = { log ->
                         viewModel.onEvent(DashboardEvent.DeleteLog(userId, log))
-                    }
+                    },
+                    onSaveAsMeal = { mealType, name ->
+                        viewModel.onEvent(DashboardEvent.SaveMealAsPreset(userId, mealType, name))
+                    },
+                    onOpenSavedMeals = { navController.navigate(Routes.SAVED_MEALS) }
                 )
             }
 

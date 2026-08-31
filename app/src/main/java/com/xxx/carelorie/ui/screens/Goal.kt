@@ -1,6 +1,5 @@
 package com.xxx.carelorie.ui.screens
 
-import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Box
@@ -36,8 +35,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,7 +43,6 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.navigation.NavController
-import com.xxx.carelorie.ui.components.dashboard.AISummaryCard
 import com.xxx.carelorie.ui.components.dashboard.CarelorieCalendar
 import com.xxx.carelorie.ui.components.dashboard.StreakBar
 import com.xxx.carelorie.ui.components.dashboard.WeightGraph
@@ -71,7 +67,6 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.onEvent(DashboardEvent.LoadData(userId))
-                viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId))
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -80,15 +75,17 @@ fun GoalScreen(navController: NavController, userId: String, viewModel: Dashboar
         }
     }
 
-// Read once and branch on the local: checking the state and then re-reading it with !!
-// could throw if the error cleared between the two reads.
-val loadError = uiState.error
+    // Read once and branch on the local: checking the state and then re-reading it with !!
+    // could throw if the error cleared between the two reads.
+    val loadError = uiState.error
 
-LaunchedEffect(uiState.weightHistory) {
-    if (uiState.weightHistory.isNotEmpty() && uiState.goalInsight == null && !uiState.isGoalInsightLoading) {
-        viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId))
+    // Asked for once, when there is history to talk about and nothing on screen yet. The
+    // view model itself refuses duplicate requests, so resuming the tab costs nothing.
+    LaunchedEffect(uiState.weightHistory.size) {
+        if (uiState.weightHistory.isNotEmpty()) {
+            viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId))
+        }
     }
-}
 
     if (uiState.isLoading && uiState.weightHistory.isEmpty() && uiState.trackedDates.isEmpty()) {
         // Show only the loading indicator while the initial data load is in progress.
@@ -136,12 +133,6 @@ LaunchedEffect(uiState.weightHistory) {
                                 viewModel.onEvent(DashboardEvent.ChangeMonth(userId, newMonth))
                             }
                         )
-                        
-                        Spacer(Modifier.height(16.dp))
-                        
-                        AISummaryCard(
-                            aiAdvice = uiState.weightAdvice
-                        )
                     }
 
                     Spacer(Modifier.width(16.dp))
@@ -172,7 +163,7 @@ LaunchedEffect(uiState.weightHistory) {
                         AIInsightBox(
                             insight = uiState.goalInsight,
                             isLoading = uiState.isGoalInsightLoading,
-                            onRefresh = { viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId)) }
+                            onRefresh = { viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId, force = true)) }
                         )
                     }
                 }
@@ -215,13 +206,7 @@ LaunchedEffect(uiState.weightHistory) {
                 AIInsightBox(
                     insight = uiState.goalInsight,
                     isLoading = uiState.isGoalInsightLoading,
-                    onRefresh = { viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId)) }
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                AISummaryCard(
-                    aiAdvice = uiState.weightAdvice
+                    onRefresh = { viewModel.onEvent(DashboardEvent.RequestGoalInsight(userId, force = true)) }
                 )
             }
 

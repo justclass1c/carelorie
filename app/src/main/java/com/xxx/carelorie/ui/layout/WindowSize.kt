@@ -58,26 +58,3 @@ object ContentWidth {
 @Composable
 fun Modifier.constrainedWidth(maxWidth: Dp = ContentWidth.Form): Modifier =
     if (isWideScreen) this.widthIn(max = maxWidth) else this
-
-/**
- * Constrains [content] to [maxWidth] and centres it once the window is wider than a phone.
- *
- * For content that is not already inside its own scrolling column; otherwise reach for
- * [constrainedWidth].
- */
-@Composable
-fun ResponsiveContainer(
-    modifier: Modifier = Modifier,
-    maxWidth: Dp = ContentWidth.Form,
-    content: @Composable BoxScope.() -> Unit
-) {
-    Box(
-        modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.TopCenter
-    ) {
-        Box(
-            modifier = Modifier.constrainedWidth(maxWidth).fillMaxWidth(),
-            content = content
-        )
-    }
-}

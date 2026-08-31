@@ -23,15 +23,6 @@ interface FoodLogDao {
     )
     fun observeForDate(userId: String, date: String): Flow<List<FoodLogEntity>>
 
-    @Query(
-        """
-        SELECT * FROM food_log_entries
-        WHERE userId = :userId AND logDate BETWEEN :start AND :end AND isPendingDelete = 0
-        ORDER BY loggedAt ASC
-        """
-    )
-    fun observeBetween(userId: String, start: String, end: String): Flow<List<FoodLogEntity>>
-
     /** Distinct days that have at least one entry — drives the calendar dots. */
     @Query(
         """
@@ -41,6 +32,16 @@ interface FoodLogDao {
         """
     )
     fun observeLoggedDates(userId: String): Flow<List<String>>
+
+    /**
+     * Every day this user has logged anything, unbounded.
+     *
+     * The streak used to be derived from whichever month the dashboard happened to be showing,
+     * which capped it at the day of the month and made it change as you paged the calendar.
+     * Streaks need the whole history, so they get their own query.
+     */
+    @Query("SELECT DISTINCT logDate FROM food_log_entries WHERE userId = :userId AND isPendingDelete = 0")
+    suspend fun getAllLoggedDates(userId: String): List<String>
 
     @Query(
         """
@@ -59,9 +60,6 @@ interface FoodLogDao {
 
     @Query("SELECT * FROM food_log_entries WHERE isPendingDelete = 1")
     suspend fun getPendingDeletes(): List<FoodLogEntity>
-
-    @Query("SELECT remoteId FROM food_log_entries WHERE isPendingDelete = 1 AND remoteId IS NOT NULL")
-    suspend fun getPendingDeleteRemoteIds(): List<Int>
 
     @Query("UPDATE food_log_entries SET remoteId = :remoteId, isSynced = 1 WHERE localId = :localId")
     suspend fun markSynced(localId: String, remoteId: Int?)

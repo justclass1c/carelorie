@@ -23,10 +23,23 @@ object CarelorieViewModelFactories {
         }
     }
 
+    val Onboarding = viewModelFactory {
+        initializer {
+            OnboardingViewModel(container().userRepository)
+        }
+    }
+
+    val SavedMeals = viewModelFactory {
+        initializer {
+            val c = container()
+            SavedMealsViewModel(c.mealPresetRepository, c.foodRepository)
+        }
+    }
+
     val Profile = viewModelFactory {
         initializer {
             val c = container()
-            ProfileViewModel(c.userRepository, c.sessionManager, c.themeManager)
+            ProfileViewModel(c.userRepository, c.foodRepository, c.sessionManager, c.themeManager)
         }
     }
 
@@ -35,8 +48,8 @@ object CarelorieViewModelFactories {
             val c = container()
             DashboardViewModel(
                 userRepository = c.userRepository,
-                macroRepository = c.macroDataRepository,
                 foodRepository = c.foodRepository,
+                mealPresetRepository = c.mealPresetRepository,
                 deepSeekService = c.deepSeekService
             )
         }

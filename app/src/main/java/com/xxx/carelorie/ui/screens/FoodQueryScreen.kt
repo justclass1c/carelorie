@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -32,6 +33,8 @@ import com.xxx.carelorie.data.local.FoodPresetEntity
 import com.xxx.carelorie.data.nutrition.FoodCandidate
 import com.xxx.carelorie.ui.layout.ContentWidth
 import com.xxx.carelorie.ui.layout.constrainedWidth
+import com.xxx.carelorie.ui.components.food.PhotoSourceDialog
+import com.xxx.carelorie.ui.util.rememberFoodPhotoCapture
 import com.xxx.carelorie.ui.theme.MacroColors
 import com.xxx.carelorie.ui.viewmodels.FoodQueryEvent
 import com.xxx.carelorie.ui.viewmodels.FoodQueryViewModel
@@ -66,6 +69,12 @@ fun FoodQueryScreen(
             }
     }
 
+    val photoCapture = rememberFoodPhotoCapture(
+        onImage = { viewModel.onEvent(FoodQueryEvent.PhotoTaken(it)) },
+        onError = { viewModel.onEvent(FoodQueryEvent.PhotoFailed(it)) }
+    )
+    var photoSourceOpen by remember { mutableStateOf(false) }
+
     LaunchedEffect(userId) {
         viewModel.onEvent(FoodQueryEvent.Start(userId))
     }
@@ -73,6 +82,13 @@ fun FoodQueryScreen(
     LaunchedEffect(uiState.message) {
         val message = uiState.message ?: return@LaunchedEffect
         val canUndo = uiState.lastDeleted != null
+
+        // Clear the message before awaiting the result, not after. showSnackbar suspends for the
+        // whole time the bar is up, so leaving the tab cancels this effect mid-wait — and the
+        // message stayed set, which is why "Deleted …" reappeared on every return to the screen
+        // and never went away.
+        viewModel.onEvent(FoodQueryEvent.MessageShown)
+
         val result = snackbarHostState.showSnackbar(
             message = message,
             actionLabel = if (canUndo) "Undo" else null,
@@ -166,8 +182,13 @@ fun FoodQueryScreen(
                     )
                     AssistChip(
                         onClick = { viewModel.onEvent(FoodQueryEvent.AiSearch) },
-                        label = { Text("Search With AI") },
+                        label = { Text("Estimate with AI") },
                         leadingIcon = { Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp)) }
+                    )
+                    AssistChip(
+                        onClick = { photoSourceOpen = true },
+                        label = { Text("Scan food") },
+                        leadingIcon = { Icon(Icons.Default.PhotoCamera, null, Modifier.size(18.dp)) }
                     )
                 }
 
@@ -296,6 +317,14 @@ fun FoodQueryScreen(
                 }
             }
         }
+    }
+
+    if (photoSourceOpen) {
+        PhotoSourceDialog(
+            onDismiss = { photoSourceOpen = false },
+            onCamera = photoCapture.takePhoto,
+            onGallery = photoCapture.pickPhoto
+        )
     }
 }
 

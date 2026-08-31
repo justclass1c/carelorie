@@ -5,7 +5,9 @@ import com.xxx.carelorie.data.remote.RemoteFoodPreset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -30,10 +32,14 @@ class OpenFoodFactsService {
     private companion object {
         const val TAG = "OpenFoodFacts"
         const val BASE = "https://world.openfoodfacts.org"
+        /** Product search moved off the main site onto its own host. */
+        const val SEARCH_BASE = "https://search.openfoodfacts.org"
         // Open Food Facts asks callers to identify themselves.
         const val USER_AGENT = "Carelorie/1.0 (Android; student project)"
         const val FIELDS =
             "code,product_name,brands,serving_size,nutriments,image_front_small_url"
+        /** The search service rejects unknown field names, so it gets its own shorter list. */
+        const val SEARCH_FIELDS = "code,product_name,brands,nutriments"
         const val TIMEOUT_MS = 12_000
     }
 
@@ -53,30 +59,30 @@ class OpenFoodFactsService {
         }
     }
 
-    /** Free-text product search. Returns an empty list when offline or nothing matches. */
+    /**
+     * Free-text product search. Returns an empty list when offline or nothing matches.
+     *
+     * Uses Open Food Facts' current search service. The legacy `cgi/search.pl` endpoint this used
+     * to call now answers 503 with an HTML "temporarily unavailable" page, which parsed as zero
+     * results — so "Search online" looked like it worked and always found nothing.
+     */
     suspend fun search(query: String, limit: Int = 20): List<FoodCandidate> =
         withContext(Dispatchers.IO) {
             if (query.isBlank()) return@withContext emptyList()
             val encoded = URLEncoder.encode(query, "UTF-8")
-            // Using the legacy search endpoint with json=1 is the most reliable way for 
-            // keyword search across all fields.
-            val url = "$BASE/cgi/search.pl?search_terms=$encoded&search_simple=1" +
-                "&action=process&json=1&page_size=$limit&fields=$FIELDS"
-            
-            Log.d(TAG, "Searching online for: $query (URL: $url)")
-            
+            val url = "$SEARCH_BASE/search?q=$encoded&page_size=$limit&fields=$SEARCH_FIELDS"
+
             val body = get(url) ?: return@withContext emptyList()
             try {
                 val root = json.parseToJsonElement(body).jsonObject
-                val products = root["products"]?.jsonArray ?: return@withContext emptyList()
-                
-                Log.d(TAG, "Found ${products.size} raw products for \"$query\"")
-                
+                // The search service returns "hits"; "products" is kept as a fallback so a
+                // future switch back to a v2 endpoint would still parse.
+                val products = (root["hits"] ?: root["products"])?.jsonArray
+                    ?: return@withContext emptyList()
+
                 products.mapNotNull { element ->
                     runCatching {
                         parseProduct(element.jsonObject, NutritionSource.OPEN_FOOD_FACTS)
-                    }.onFailure { 
-                        Log.w(TAG, "Failed to parse product element: ${it.message}")
                     }.getOrNull()
                 }
             } catch (e: Exception) {
@@ -130,8 +136,13 @@ class OpenFoodFactsService {
                 return null
             }
 
-        val brand = product["brands"]?.jsonPrimitive?.content
-            ?.split(",")?.firstOrNull()?.trim()?.takeIf { it.isNotBlank() }
+        // The v2 barcode endpoint returns brands as a comma-separated string; the search service
+        // returns an array. Accept either, or the brand is silently lost on one of the two paths.
+        val brand = when (val raw = product["brands"]) {
+            is JsonArray -> raw.firstOrNull()?.jsonPrimitive?.content
+            is JsonPrimitive -> raw.content.split(",").firstOrNull()
+            else -> null
+        }?.trim()?.takeIf { it.isNotBlank() && it != "null" }
         val serving = product["serving_size"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
             ?: "per 100 g"
 

@@ -69,8 +69,6 @@ data class FoodLogEntity(
     /** Deleted locally, but the server copy still needs removing on the next sync. */
     val isPendingDelete: Boolean = false
 ) {
-    /** One serving's worth, for showing what a single portion costs. */
-    val caloriesPerServing: Int get() = if (quantity > 0f) (calories / quantity).toInt() else calories
 
     val hasNutritionDetail: Boolean
         get() = listOfNotNull(fiberGrams, sugarGrams, saturatedFatGrams, sodiumMilligrams).isNotEmpty()

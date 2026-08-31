@@ -20,7 +20,8 @@ import java.net.URL
 
 sealed interface RecognitionResult {
     data class Success(val candidates: List<FoodCandidate>) : RecognitionResult
-    data class Failure(val reason: String) : RecognitionResult
+    /** [retryable] marks a transient problem worth trying another model or another moment. */
+    data class Failure(val reason: String, val retryable: Boolean = false) : RecognitionResult
     /** No key configured — the UI explains this rather than pretending the call failed. */
     object NotConfigured : RecognitionResult
 }
@@ -32,6 +33,15 @@ interface FoodRecognitionService {
     suspend fun recognise(imageBase64: String): RecognitionResult
     suspend fun estimateNutrition(query: String, context: String? = null): RecognitionResult
     val isConfigured: Boolean
+
+    /**
+     * Whether [recognise] can actually look at a picture.
+     *
+     * Separate from [isConfigured] because a text-only backend is perfectly usable for
+     * [estimateNutrition] while being useless for a photo — and the UI needs to know which
+     * buttons to offer rather than letting one silently fail.
+     */
+    val supportsImages: Boolean get() = false
 }
 
 /**
@@ -45,6 +55,7 @@ interface FoodRecognitionService {
 class StubFoodRecognitionService : FoodRecognitionService {
 
     override val isConfigured: Boolean = false
+    override val supportsImages: Boolean = false
 
     override suspend fun recognise(imageBase64: String): RecognitionResult =
         RecognitionResult.NotConfigured
@@ -54,11 +65,16 @@ class StubFoodRecognitionService : FoodRecognitionService {
 }
 
 /**
- * Real implementation, calling DeepSeek's chat endpoint.
+ * Text-based nutrition estimation via DeepSeek's chat endpoint.
+ *
+ * Text only. `deepseek-chat` has no vision capability, so [recognise] refuses rather than posting
+ * an image part the model discards — which is what the previous version did, leaving the model to
+ * answer from a prompt with no picture attached and no way for anyone to tell.
  */
 class DeepSeekFoodRecognitionService(private val apiKey: String) : FoodRecognitionService {
 
     override val isConfigured: Boolean = apiKey.isNotBlank()
+    override val supportsImages: Boolean = false
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -97,34 +113,9 @@ Guidelines:
     }
 
     override suspend fun recognise(imageBase64: String): RecognitionResult =
-        withContext(Dispatchers.IO) {
-            if (!isConfigured) return@withContext RecognitionResult.NotConfigured
-
-            val requestBody = buildJsonObject {
-                put("model", MODEL)
-                putJsonArray("messages") {
-                    addJsonObject {
-                        put("role", "user")
-                        putJsonArray("content") {
-                            addJsonObject {
-                                put("type", "text")
-                                put("text", PROMPT_IMAGE)
-                            }
-                            addJsonObject {
-                                put("type", "image_url")
-                                putJsonObject("image_url") {
-                                    put("url", "data:image/jpeg;base64,$imageBase64")
-                                }
-                            }
-                        }
-                    }
-                }
-                put("max_tokens", 2048)
-                put("temperature", 0.2)
-            }.toString()
-
-            executeRequest(requestBody)
-        }
+        RecognitionResult.Failure(
+            "Photo recognition needs a Gemini key. Add GEMINI_API_KEY to local.properties."
+        )
 
     override suspend fun estimateNutrition(query: String, context: String?): RecognitionResult =
         withContext(Dispatchers.IO) {
@@ -258,10 +249,40 @@ Guidelines:
     }
 }
 
+/**
+ * Routes each capability to a backend that can actually serve it.
+ *
+ * Photos go to Gemini, text estimates prefer DeepSeek and fall back to Gemini. Either key alone
+ * gives a working app; neither gives honest "not configured" messages instead of invented macros.
+ */
+class CompositeFoodRecognitionService(
+    private val imageBackend: FoodRecognitionService?,
+    private val textBackend: FoodRecognitionService?
+) : FoodRecognitionService {
+
+    override val isConfigured: Boolean = imageBackend != null || textBackend != null
+    override val supportsImages: Boolean = imageBackend != null
+
+    override suspend fun recognise(imageBase64: String): RecognitionResult =
+        imageBackend?.recognise(imageBase64) ?: RecognitionResult.NotConfigured
+
+    override suspend fun estimateNutrition(query: String, context: String?): RecognitionResult {
+        val primary = textBackend ?: imageBackend ?: return RecognitionResult.NotConfigured
+        val result = primary.estimateNutrition(query, context)
+        // One provider being down should not lose the feature when the other is configured.
+        if (result is RecognitionResult.Failure && result.retryable && primary !== imageBackend) {
+            imageBackend?.let { return it.estimateNutrition(query, context) }
+        }
+        return result
+    }
+}
+
 object FoodRecognitionServiceProvider {
-    /**
-     * Picks the real service when a key is present, otherwise the stub.
-     */
-    fun create(apiKey: String): FoodRecognitionService =
-        if (apiKey.isNotBlank()) DeepSeekFoodRecognitionService(apiKey) else StubFoodRecognitionService()
+    /** [deepSeekKey] drives text estimation; [geminiKey] additionally unlocks photo recognition. */
+    fun create(deepSeekKey: String, geminiKey: String): FoodRecognitionService {
+        val gemini = geminiKey.takeIf { it.isNotBlank() }?.let { GeminiFoodRecognitionService(it) }
+        val deepSeek = deepSeekKey.takeIf { it.isNotBlank() }?.let { DeepSeekFoodRecognitionService(it) }
+        if (gemini == null && deepSeek == null) return StubFoodRecognitionService()
+        return CompositeFoodRecognitionService(imageBackend = gemini, textBackend = deepSeek)
+    }
 }

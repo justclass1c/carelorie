@@ -178,7 +178,9 @@ class FoodLogViewModel(
             val from = YearMonth.from(date).atDay(1)
             val result = foodRepository.refresh(userId, from)
             _uiState.update {
-                it.copy(isLoading = false, isOffline = result == SyncResult.OFFLINE)
+                it.copy(isLoading = false, isOffline = result == SyncResult.OFFLINE)  // FAILED is a
+                    // server-side problem, not a missing connection, so it must not show
+                    // the "showing saved history" banner.
             }
         }
     }
