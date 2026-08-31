@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
@@ -146,9 +147,10 @@ fun Profile(navController: NavController, userId: String, viewModel: ProfileView
                         modifier = Modifier.size(38.dp)
                     ) {
                         IconButton(onClick = { viewModel.onEvent(ProfileUiEvent.ToggleEditMode) }) {
+                            val editing = uiState.isEditMode
                             Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "Edit Profile",
+                                imageVector = if (editing) Icons.Default.Close else Icons.Default.Edit,
+                                contentDescription = if (editing) "Cancel edit" else "Edit Profile",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -637,28 +639,32 @@ fun MacroLimitsEditSection(
             onValueChange = { onEvent(ProfileUiEvent.CalorieLimitChanged(it)) },
             label = { Text("Calories (kcal)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         OutlinedTextField(
             value = uiState.proteinLimit,
             onValueChange = { onEvent(ProfileUiEvent.ProteinLimitChanged(it)) },
             label = { Text("Protein (g)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         OutlinedTextField(
             value = uiState.carbsLimit,
             onValueChange = { onEvent(ProfileUiEvent.CarbsLimitChanged(it)) },
             label = { Text("Carbs (g)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         OutlinedTextField(
             value = uiState.fatLimit,
             onValueChange = { onEvent(ProfileUiEvent.FatLimitChanged(it)) },
             label = { Text("Fat (g)") },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
     }
 }

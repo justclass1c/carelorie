@@ -118,15 +118,13 @@ class FoodLogViewModel(
         }
     }
 
-    /** Idempotent — safe to call on every recomposition of the screen. */
+    /** Idempotent — safe to call on every recomposition / resume of the screen. */
     private fun start(userId: String) {
-        if (startedForUser == userId) {
-            syncFrom(userId, _uiState.value.selectedDate)
-            return
+        if (startedForUser != userId) {
+            startedForUser = userId
+            observeLogs(userId, _uiState.value.selectedDate)
+            observeLoggedDates(userId)
         }
-        startedForUser = userId
-        observeLogs(userId, _uiState.value.selectedDate)
-        observeLoggedDates(userId)
         syncFrom(userId, _uiState.value.selectedDate)
         loadTargets(userId)
     }
