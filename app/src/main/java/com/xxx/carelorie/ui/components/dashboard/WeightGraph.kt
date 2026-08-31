@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.xxx.carelorie.data.WeightRecord
 import java.time.LocalDate
 import java.time.YearMonth
+import java.util.Locale
 
 @Composable
 fun WeightGraph(
@@ -138,7 +139,13 @@ fun WeightGraph(
                 val ticks = listOf(rawMin, (rawMin + rawMax) / 2f, rawMax).distinct()
                 ticks.forEach { tickWeight ->
                     val y = (height - paddingBottom) - ((tickWeight - minWeight) / weightRange) * graphHeight
-                    val weightStr = if (tickWeight == tickWeight.toInt().toFloat()) "${tickWeight.toInt()}kg" else "%.1fkg".format(tickWeight)
+                    // Locale.US on purpose: the default locale renders 75.5 as "75,5" in much of
+                    // Europe, and the unit suffix is not translated either.
+                    val weightStr = if (tickWeight == tickWeight.toInt().toFloat()) {
+                        "${tickWeight.toInt()}kg"
+                    } else {
+                        String.format(Locale.US, "%.1fkg", tickWeight)
+                    }
                     drawText(
                         textMeasurer = textMeasurer,
                         text = weightStr,
@@ -172,18 +179,22 @@ fun WeightGraph(
                     )
                 }
                 
-                // Draw points and X-axis day labels
-                points.forEach { (point, day, weight) ->
+                // Every point gets a dot, but only first / middle / last get a day label. At 9sp a
+                // label per weigh-in turns into an unreadable smear once a month has twenty of
+                // them, and the same three-label treatment is what the Y axis uses.
+                val labelledIndices = setOf(0, points.lastIndex / 2, points.lastIndex)
+
+                points.forEachIndexed { index, (point, day, _) ->
                     drawCircle(color = primaryColor, radius = 6f, center = point)
-                    
-                    // Draw day on X-axis
-                    val dayStr = day.toString()
-                    drawText(
-                        textMeasurer = textMeasurer,
-                        text = dayStr,
-                        topLeft = Offset(point.x - 6.dp.toPx(), height - paddingBottom + 6.dp.toPx()),
-                        style = TextStyle(fontSize = 9.sp, color = onSurfaceVariant, fontWeight = FontWeight.Bold)
-                    )
+
+                    if (index in labelledIndices) {
+                        drawText(
+                            textMeasurer = textMeasurer,
+                            text = day.toString(),
+                            topLeft = Offset(point.x - 6.dp.toPx(), height - paddingBottom + 6.dp.toPx()),
+                            style = TextStyle(fontSize = 9.sp, color = onSurfaceVariant, fontWeight = FontWeight.Bold)
+                        )
+                    }
                 }
             }
         }

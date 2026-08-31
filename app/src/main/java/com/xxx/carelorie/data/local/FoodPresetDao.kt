@@ -2,6 +2,7 @@ package com.xxx.carelorie.data.local
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -68,6 +69,19 @@ interface FoodPresetDao {
         """
     )
     suspend fun clearSyncedForUser(userId: String)
+
+    /**
+     * Swaps this user's synced rows for the server's copy in one transaction.
+     *
+     * Doing the delete and the insert as two writes made Room invalidate `food_presets` twice,
+     * so anything observing the list saw it empty and refill on every refresh. One transaction
+     * is one invalidation, so the list only ever moves from the old state to the new one.
+     */
+    @Transaction
+    suspend fun replaceSyncedForUser(userId: String, presets: List<FoodPresetEntity>) {
+        clearSyncedForUser(userId)
+        upsertAll(presets)
+    }
 
     /**
      * Every food this user created, for account deletion.

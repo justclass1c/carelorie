@@ -269,8 +269,6 @@ class FoodRepository(
             .mapNotNull { entry -> entry.remoteId?.let { it to entry } }
             .toMap()
 
-        foodLogDao.clearSyncedBetween(userId, fetchStart, fetchEnd)
-
         val pendingDeletes = foodLogDao.getPendingDeletes()
         val pendingDeleteIds = (pendingDeletes.mapNotNull { it.remoteId } + justDeleted).toSet()
 
@@ -301,7 +299,10 @@ class FoodRepository(
             )
         }
 
-        foodLogDao.upsertAll(entities)
+        // Clear and re-insert as one transaction, so the diary never briefly renders without the
+        // rows that are about to come straight back. [byRemoteId] above was already read, which is
+        // what the clear must not run ahead of.
+        foodLogDao.replaceSyncedBetween(userId, fetchStart, fetchEnd, entities)
         return SyncResult.SUCCESS
     }
 
@@ -515,8 +516,9 @@ class FoodRepository(
         // Anything still queued for deletion must not be resurrected by the server copy.
         val pendingDeleteIds = foodPresetDao.getPendingDeletes().mapNotNull { it.remoteId }.toSet()
 
-        foodPresetDao.clearSyncedForUser(userId)
-        foodPresetDao.upsertAll(
+        // One transaction, so the library does not blink empty on every refresh.
+        foodPresetDao.replaceSyncedForUser(
+            userId,
             remote
                 .filter { it.id !in pendingDeleteIds }
                 .map { it.toPresetEntity(localId = existingByRemoteId[it.id] ?: UUID.randomUUID().toString()) }

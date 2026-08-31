@@ -242,7 +242,11 @@ private fun AIInsightBox(
     isLoading: Boolean,
     onRefresh: () -> Unit
 ) {
-    val insightColor = MaterialTheme.colorScheme.primary
+    // The card paints `primaryContainer`, so its contents have to use `onPrimaryContainer` —
+    // the `onSurface` pair belongs to a surface-coloured card. Against the light-mode container
+    // (#E4E4FB) `onSurfaceVariant` lands at roughly 4.1:1, under the 4.5:1 AA floor.
+    val insightColor = MaterialTheme.colorScheme.onPrimaryContainer
+    val insightMutedColor = insightColor.copy(alpha = 0.75f)
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -258,14 +262,14 @@ private fun AIInsightBox(
                 Icon(
                     imageVector = Icons.Outlined.Info,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = insightMutedColor,
                     modifier = Modifier.height(18.dp).width(18.dp)
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = "AI Health Insight",
                     style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = insightColor
                 )
             }
 
@@ -286,7 +290,7 @@ private fun AIInsightBox(
                         Text(
                             text = "Analyzing your data...",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = insightMutedColor
                         )
                     }
                 }
@@ -294,7 +298,7 @@ private fun AIInsightBox(
                     Text(
                         text = insight.replace(Regex("\\*\\*"), ""),
                         style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = insightColor,
                         lineHeight = 24.sp
                     )
                 }
@@ -302,7 +306,7 @@ private fun AIInsightBox(
                     Text(
                         text = "Update your weight to get a personalized health insight.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = insightMutedColor
                     )
                 }
             }
@@ -320,7 +324,7 @@ private fun AIInsightBox(
                         Icon(
                             imageVector = Icons.Filled.Refresh,
                             contentDescription = "Refresh insight",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = insightMutedColor,
                             modifier = Modifier.height(18.dp).width(18.dp)
                         )
                     }

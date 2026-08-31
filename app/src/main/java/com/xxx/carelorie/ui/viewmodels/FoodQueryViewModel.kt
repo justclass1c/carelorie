@@ -10,6 +10,7 @@ import com.xxx.carelorie.data.nutrition.FoodRecognitionService
 import com.xxx.carelorie.data.nutrition.OpenFoodFactsService
 import com.xxx.carelorie.data.nutrition.RecognitionResult
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,7 +32,14 @@ data class FoodQueryUiState(
     /** Where [searchResults] came from, e.g. "Online results for \"milk\"". */
     val resultsLabel: String? = null,
     val isSearching: Boolean = false,
-    val isAnalysing: Boolean = false
+    val isAnalysing: Boolean = false,
+    /**
+     * True only once an unsynced row has stayed unsynced for [FoodQueryViewModel.SYNC_FAILURE_GRACE_MS].
+     * A save is unsynced for the length of one network round trip on every successful push, so
+     * showing the warning the instant [unsyncedCount] goes above zero meant it flashed on every
+     * single save rather than only on an actual rejection.
+     */
+    val showUnsyncedWarning: Boolean = false
 ) {
     private fun matches(preset: FoodPresetEntity): Boolean =
         query.isBlank() ||
@@ -101,6 +109,9 @@ class FoodQueryViewModel(
     private var searchJob: Job? = null
     private var startedForUser: String? = null
 
+    /** Counts down [SYNC_FAILURE_GRACE_MS] before the unsynced warning is allowed to show. */
+    private var syncWarningJob: Job? = null
+
     fun onEvent(event: FoodQueryEvent) {
         when (event) {
             is FoodQueryEvent.Start -> start(event.userId)
@@ -142,6 +153,8 @@ class FoodQueryViewModel(
         presetsJob = viewModelScope.launch {
             foodRepository.observePresets(userId).collect { presets ->
                 _uiState.update { it.copy(allPresets = presets, isLoading = false) }
+                val unsynced = presets.count { !it.isBuiltIn && !it.isSynced }
+                onUnsyncedCountChanged(unsynced)
             }
         }
         refresh(userId)
@@ -151,10 +164,48 @@ class FoodQueryViewModel(
         if (userId.isEmpty()) return
         viewModelScope.launch {
             val result = foodRepository.refreshPresets(userId)
+            val isOffline = result == SyncResult.OFFLINE
             _uiState.update {
-                it.copy(isLoading = false, isOffline = result == SyncResult.OFFLINE)
+                it.copy(isLoading = false, isOffline = isOffline)
+            }
+            // Going offline is not a failure the warning should report — the offline notice
+            // already covers it, and a row that cannot reach the network yet is not the same
+            // as one the server rejected.
+            if (isOffline) {
+                syncWarningJob?.cancel()
+                syncWarningJob = null
+                _uiState.update { it.copy(showUnsyncedWarning = false) }
             }
         }
+    }
+
+    /**
+     * A row goes unsynced the instant it is saved and comes back synced one network round trip
+     * later on every normal, successful push — showing the warning immediately made it flash on
+     * every single save. Only surface it once the count has stayed above zero for
+     * [SYNC_FAILURE_GRACE_MS] straight, which is what an actual rejection by the server looks
+     * like. Dropping back to zero clears it right away; there is nothing to debounce about good
+     * news.
+     */
+    private fun onUnsyncedCountChanged(unsyncedCount: Int) {
+        if (unsyncedCount == 0) {
+            syncWarningJob?.cancel()
+            syncWarningJob = null
+            _uiState.update { it.copy(showUnsyncedWarning = false) }
+            return
+        }
+        if (syncWarningJob?.isActive == true) return
+        syncWarningJob = viewModelScope.launch {
+            delay(SYNC_FAILURE_GRACE_MS)
+            if (!_uiState.value.isOffline) {
+                _uiState.update { it.copy(showUnsyncedWarning = true) }
+            }
+        }
+    }
+
+    private companion object {
+        /** How long a row must stay unsynced before it is treated as a real failure. */
+        const val SYNC_FAILURE_GRACE_MS = 5000L
     }
 
     // ------------------------------------------------------------------ finding new foods

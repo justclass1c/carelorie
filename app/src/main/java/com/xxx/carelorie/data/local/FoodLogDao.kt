@@ -2,6 +2,7 @@ package com.xxx.carelorie.data.local
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
@@ -93,6 +94,23 @@ interface FoodLogDao {
         """
     )
     suspend fun clearSyncedBetween(userId: String, from: String, to: String)
+
+    /**
+     * Swaps the synced rows in a range for the server's copy in one transaction.
+     *
+     * Same reasoning as [FoodPresetDao.replaceSyncedForUser]: two writes meant two Room
+     * invalidations, so the diary visibly emptied and refilled on every sync.
+     */
+    @Transaction
+    suspend fun replaceSyncedBetween(
+        userId: String,
+        from: String,
+        to: String,
+        entries: List<FoodLogEntity>
+    ) {
+        clearSyncedBetween(userId, from, to)
+        upsertAll(entries)
+    }
 
     /** Every entry belonging to a user, for account deletion. */
     @Query("DELETE FROM food_log_entries WHERE userId = :userId")

@@ -136,11 +136,18 @@ fun FoodQueryScreen(
                     modifier = Modifier.padding(top = 12.dp, bottom = 16.dp)
                 )
 
+                // Independent, not either/or. Being offline and having rows the server has
+                // rejected are separate facts, and both stay true at the same time. Rendering
+                // them as a chain meant one failed connectivity probe swapped the warning for
+                // the offline notice and back, which read as the red bar flickering.
                 if (uiState.isOffline) {
                     Notice("Offline — changes will sync when you reconnect.")
-                } else if (uiState.unsyncedCount > 0) {
-                    // Online but the server rejected the write. Saying so beats a row that
-                    // quietly never leaves the phone.
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                if (uiState.showUnsyncedWarning) {
+                    // The server rejected the write. Saying so beats a row that quietly never
+                    // leaves the phone.
                     Notice(
                         "${uiState.unsyncedCount} food(s) saved here but not accepted by the " +
                             "server. Check the food_presets table has the brand and " +
