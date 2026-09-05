@@ -93,6 +93,18 @@ class FoodRepository(
         return foodLogDao.getBetween(userId, start.toString(), end.toString()).map { it.toRemote() }
     }
 
+    /**
+     * A straight local read of a closed date range — never triggers a sync.
+     *
+     * Callers that already ran [refresh]/[refreshRange] use this instead of [getMonthlyLogs],
+     * because every [refresh] clears and re-inserts the synced rows in its range. Two refreshes
+     * back-to-back mean two round trips and two database rewrites, and the second one can briefly
+     * drop a row the first one just put in place, which is what made a freshly logged food flicker
+     * out of the dashboard before the observer re-emitted it.
+     */
+    suspend fun getLogsBetween(userId: String, from: LocalDate, to: LocalDate): List<RemoteFoodLog> =
+        foodLogDao.getBetween(userId, from.toString(), to.toString()).map { it.toRemote() }
+
     // ---------------------------------------------------------------- writes (local first)
 
     /**

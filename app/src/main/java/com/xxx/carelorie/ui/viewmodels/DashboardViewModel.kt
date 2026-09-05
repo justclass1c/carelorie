@@ -86,6 +86,7 @@ class DashboardViewModel(
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
 
+    private var loadJob: Job? = null
     private var todayLogsJob: Job? = null
     private var goalInsightJob: Job? = null
 
@@ -116,17 +117,30 @@ class DashboardViewModel(
         }
         loadedForUser = userId
 
+        // Drop any load still in flight. The previous load may have read the database before the
+        // newest entry landed, and letting it finish would overwrite the fresher state with that
+        // stale snapshot — the flicker-and-vanish you saw when a food was just logged.
+        loadJob?.cancel()
+
         _uiState.update { it.copy(isLoading = true, error = null) }
-        viewModelScope.launch {
+        loadJob = viewModelScope.launch {
             try {
                 val profile = userRepository.getProfile(userId)
-                
+
                 val today = LocalDate.now()
-                // Fetch enough logs to cover the selected month AND the last 7 days for the dashboard
-                val fetchStartDate = if (yearMonth.atDay(1).isBefore(today.minusDays(7))) 
-                    yearMonth.atDay(1) 
-                else 
+                // The current calendar week, Sunday to Saturday.
+                val weekStart = today.minusDays((today.dayOfWeek.value % 7).toLong())
+
+                // A single window that covers whatever is on screen: the selected month for the
+                // monthly chart, the current week for the weekly chart, and today. Fetching and
+                // then reading exactly this range once avoids a second refresh() clearing and
+                // re-inserting rows the first one just wrote (that double round trip is what made
+                // a brand-new entry flicker out of the list).
+                val fetchStartDate = minOf(
+                    yearMonth.atDay(1),
+                    weekStart,
                     today.minusDays(7)
+                )
 
                 // Refresh the whole range to ensure consistency
                 try {
@@ -136,28 +150,27 @@ class DashboardViewModel(
                 }
 
                 val allLogs = try {
-                    foodRepository.getMonthlyLogs(userId, YearMonth.from(fetchStartDate)) 
+                    foodRepository.getLogsBetween(userId, fetchStartDate, today)
                 } catch (e: Exception) {
                     Log.e("DashboardViewModel", "Error fetching logs from cache", e)
                     emptyList()
                 }
-                
+
                 // Group logs by date once to avoid repeated filtering
                 val logsByDate = allLogs.groupBy { it.createdAt.take(10) }
-                
+
                 val todayLogs = logsByDate[today.toString()] ?: emptyList()
-                
+
                 // Observe today's logs in real time so deletions from the Food Log screen or
                 // elsewhere are reflected immediately without waiting for the next refresh.
                 observeTodayLogs(userId)
-                
+
                 // Weekly Data — the current calendar week, Sunday to Saturday,
                 // regardless of which day "today" falls on.
-                val weekStart = today.minusDays((today.dayOfWeek.value % 7).toLong())
                 val weeklyData = (0..6).map { i ->
                     val date = weekStart.plusDays(i.toLong())
                     val logsForDay = logsByDate[date.toString()] ?: emptyList()
-                    
+
                     DailyMacroIntake(
                         date = date,
                         protein = logsForDay.sumOf { it.protein.toDouble() }.toFloat(),
@@ -205,7 +218,11 @@ class DashboardViewModel(
                         username = profile?.name ?: userId,
                         weeklyIntake = weeklyData,
                         monthlyIntake = monthlyData,
-                        todayLogs = todayLogs,
+                        // The Room observer owns today's list and is always the freshest source.
+                        // Fall back to this load's snapshot only when nothing is on screen yet, so
+                        // a just-logged entry that the observer already delivered is never erased
+                        // by an older snapshot taken earlier in this coroutine.
+                        todayLogs = it.todayLogs.ifEmpty { todayLogs },
                         weightHistory = weightHistory,
                         currentStreak = streak,
                         trackedDates = trackedDates,
